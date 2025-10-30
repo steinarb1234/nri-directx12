@@ -44,9 +44,9 @@ nri_message_callback :: proc "c" (
 ) {
     level_name := "INFO"
     switch level {
-    case .Info: level_name = "INFO"
-    case .Warning: level_name = "WARN"
-    case .Error: level_name = "ERROR"
+		case .Info:    level_name = "INFO"
+		case .Warning: level_name = "WARN"
+		case .Error:   level_name = "ERROR"
     }
 	context = runtime.default_context()
     fmt.printfln("[NRI %s] %s:%d - %s", level_name, file, line, message)
