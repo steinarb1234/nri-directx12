@@ -46,7 +46,7 @@ main :: proc() {
 
     // wx := i32(640)
     // wy := i32(480)
-    window = sdl.CreateWindow("Hello World!", window_width, window_height, {.OPENGL, .RESIZABLE}); sdl_assert(window != nil)
+    window = sdl.CreateWindow("Hello World!", window_width, window_height, {.RESIZABLE}); sdl_assert(window != nil)
 	defer sdl.DestroyWindow(window)
 
     
@@ -66,7 +66,7 @@ main :: proc() {
         // shader_ext_space                      = u32,
         enable_validation                     = true,
         enable_graphics_api_validation        = true,
-        // enable_d3d12_draw_parameters_emulation= bool,
+        // enable_d3d12_draw_parameters_emulation= true,
         // enable_d3d11_command_buffer_emulation = bool,
         // disable_vk_ray_tracing                = bool,
         // disable3rd_party_allocation_callbacks = bool,
@@ -76,46 +76,46 @@ main :: proc() {
         os.exit(-1)
     }
 
-    window_handle := dxgi.HWND(sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil))
-    // hwnd : nri.Window = nri.Window(window_handle)
-    hwnd : nri.Window
+    // window_handle := dxgi.HWND(sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil))
+    // // hwnd : nri.Window = nri.Window(window_handle)
+    // hwnd : nri.Window
 
-    // Create the swapchain
-    nri_swapchain_desc := nri.Swap_Chain_Desc{
-        window           = {
-            windows = nri.Windows_Window{window_handle},
-            // x11    = X11_Window,
-            // wayland= Wayland_Window,
-            // metal  = Metal_Window,
-        },
-        // command_queue    = ^Command_Queue,
-        width             = u16(window_width),
-        height            = u16(window_height),
-        texture_num       = 2, // framebuffers
-        format            = .BT709_G22_8BIT,
-        vsync_interval    = 1,
-        // queue_frame_num   = u8,
-        // waitable          = bool,
-        // allow_low_latency = bool,
-    }
-    nri_swapchain : ^nri.Swap_Chain
+    // // Create the swapchain
+    // nri_swapchain_desc := nri.Swap_Chain_Desc{
+    //     window           = {
+    //         windows = nri.Windows_Window{window_handle},
+    //         // x11    = X11_Window,
+    //         // wayland= Wayland_Window,
+    //         // metal  = Metal_Window,
+    //     },
+    //     // command_queue    = ^Command_Queue,
+    //     width             = u16(window_width),
+    //     height            = u16(window_height),
+    //     texture_num       = 2, // framebuffers
+    //     format            = .BT709_G22_8BIT,
+    //     vsync_interval    = 1,
+    //     // queue_frame_num   = u8,
+    //     // waitable          = bool,
+    //     // allow_low_latency = bool,
+    // }
+    // nri_swapchain : ^nri.Swap_Chain
     
-    swapchain_interface : ^nri.Swap_Chain_Interface
-    if swapchain_interface.CreateSwapChain(nri_device, nri_swapchain_desc, &nri_swapchain) != .Success {
-        fmt.printfln("Failed to create nri swachain")
-        os.exit(-1)
-    }
+    // swapchain_interface : ^nri.Swap_Chain_Interface
+    // if swapchain_interface.CreateSwapChain(nri_device, nri_swapchain_desc, &nri_swapchain) != .Success {
+    //     fmt.printfln("Failed to create nri swachain")
+    //     os.exit(-1)
+    // }
 
 
-    // Create vertex buffer
-    vertex_buffer_desc := nri.Buffer_Desc{
-        usage           = {.Vertex_Buffer},
-        size            = size_of(triangleVertices),
-        structure_stride= size_of(Vertex),
-    }
+    // // Create vertex buffer
+    // vertex_buffer_desc := nri.Buffer_Desc{
+    //     usage           = {.Vertex_Buffer},
+    //     size            = size_of(triangleVertices),
+    //     structure_stride= size_of(Vertex),
+    // }
 
-    vertex_buffer : ^nri.Buffer
-    nri_interface.CreateBuffer(nri_device, vertex_buffer_desc, &vertex_buffer)
+    // vertex_buffer : ^nri.Buffer
+    // nri_interface.CreateBuffer(nri_device, vertex_buffer_desc, &vertex_buffer)
 
 
 
