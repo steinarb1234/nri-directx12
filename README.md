@@ -1,6 +1,6 @@
 # Nvidia NRI - Odin - Tests
 
-This is my test game made using Nvidia NRI in Odin. 
+This repo is my test for using Nvidia NRI in Odin. 
 
 Dependencies: 
 - [NRI-odin](https://github.com/lodinukal/NRI-odin)
