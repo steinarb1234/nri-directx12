@@ -6,6 +6,7 @@ import "core:fmt"
 import     "base:runtime"
 import sdl "vendor:sdl3"
 import     "core:log"
+import nri "libs/NRI-odin"
 
 
 check :: proc(res: d3d12.HRESULT, message: string) {
@@ -33,3 +34,28 @@ sdl_log :: proc "c" (userdata: rawptr, category: sdl.LogCategory, priority: sdl.
 sdl_assert :: proc(ok: bool) {
 	if !ok do log.panicf("SDL Error: {}", sdl.GetError())
 }
+
+nri_message_callback :: proc "c" (
+    level: nri.Message,
+    file: cstring,
+    line: u32,
+    message: cstring,
+    user_data: rawptr,
+) {
+    level_name := "INFO"
+    switch level {
+    case .Info: level_name = "INFO"
+    case .Warning: level_name = "WARN"
+    case .Error: level_name = "ERROR"
+    }
+	context = runtime.default_context()
+    fmt.printfln("[NRI %s] %s:%d - %s", level_name, file, line, message)
+}
+
+nri_abort_callback :: proc "c"(user_data: rawptr) {
+	context = runtime.default_context()
+    fmt.eprintfln("[NRI] AbortExecution called. Exiting.")
+    os.exit(-1)
+}
+
+
