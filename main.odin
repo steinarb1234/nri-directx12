@@ -127,6 +127,28 @@ main :: proc() {
     swapchain_textures := swapchain_interface.GetSwapChainTextures(swapchain, &swapchain_texture_num)
     swapchain_format := nri_interface.GetTextureDesc(swapchain_textures[0]).format
     fmt.printfln("Swapchain format: %v", swapchain_format)
+	fmt.printfln("Number of swapchain textures: %d", swapchain_texture_num)
+
+	for (i:=0; i<nwapchain_texture_num; i+=1) {
+		texture_view_desc := nri.Texture2DViewDesc{swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format}
+
+		color_attachment : ^nri.Descriptor
+		nri_interface.CreateTexture2DView(texture_view_desc, color_attachment)
+
+		acquire_semaphore : ^nri.Fence
+		nri.interface.CreateFence(.SWAPCHAIN_SEMAPHORE, acquire_semaphore)
+
+		release_semaphore : ^nri.Fence
+		nri.interface.CreateFence(.SWAPCHAIN_SEMAPHORE, release_semaphore)
+
+		swapchain_texture := nri.SwapChainTexture{
+			acquireSemaphore = acquire_semaphore,
+			releaseSemaphore = release_semaphore,
+			texture = swapvhain_textures[i],
+			colorAttachment = color_attachment,
+			attachmentFormat = swapchain_format,
+		}
+	}
 
 
     // Create vertex buffer
