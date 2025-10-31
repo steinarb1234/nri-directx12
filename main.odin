@@ -18,6 +18,12 @@ NRI_ABORT_ON_FAILURE :: proc(result: nri.Result) {
     }
 }
 
+NRI :: struct {
+	core: nri.CoreInterface,
+	// using core: nri.CoreInterface,
+	swapchain: nri.SwapChainInterface,
+	// using swapchain: nri.SwapChainInterface,
+}
 
 NUM_RENDERTARGETS :: 2
 window : ^sdl.Window
