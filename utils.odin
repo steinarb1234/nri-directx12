@@ -55,8 +55,7 @@ nri_message_callback :: proc "c" (
 nri_abort_callback :: proc "c"(user_data: rawptr) {
 	context = runtime.default_context()
     fmt.eprintfln("[NRI] AbortExecution called. Exiting.")
-	runtime.print_stack_trace(context)
-    os.exit(-1)
+    // os.exit(-1)
 }
 
 
