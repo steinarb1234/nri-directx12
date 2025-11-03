@@ -71,8 +71,28 @@ main :: proc() {
 	defer sdl.DestroyWindow(window)
 
     // Init NRI
-    nri_device : ^nri.Device
     graphics_api := nri.GraphicsAPI.D3D12
+
+	adapters_num : u32 = 0
+	nri.EnumerateAdapters(nil, &adapters_num)
+	// bytes := adapters_num * size_of(nri.AdapterDesc)
+	adapter_descs := [adapters_num]nri.AdapterDesc
+	nri.EnumerateAdapters(adapter_descs, &adapters_num)
+
+	fmt.printf("nriEnumerateAdapters: %u adapters reported\n", adapters_num)
+
+	for adapter_desc in adapter_descs {
+		fmt.printfln("%v", adapter_desc)
+	}
+
+
+
+
+
+
+
+
+	nri_device : ^nri.Device
     callback_interface := nri.CallbackInterface {
         MessageCallback = nri_message_callback,
         AbortExecution  = nri_abort_callback,
