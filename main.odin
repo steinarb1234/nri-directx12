@@ -22,6 +22,7 @@ NRI_Interface :: struct {
 	using core: nri.CoreInterface,
 	using swapchain: nri.SwapChainInterface,
 	using helper: nri.HelperInterface,
+    using streamer : nri.StreamerInterface,
 	// using imgui: nri.ImguiInterface,
 }
 
@@ -33,7 +34,16 @@ SwapChainTexture :: struct {
     attachment_format: nri.Format,
 };
 
+Frame :: struct {
+    command_allocator             : ^^nri.CommandAllocator,
+    command_buffer                : ^^nri.CommandBuffer,
+    constant_buffer_view          : ^nri.Descriptor,
+    constant_buffer_descriptor_set: ^nri.DescriptorSet,
+    constant_buffer_view_offset   : u64,
+}
+
 NUM_RENDERTARGETS :: 2
+BUFFERED_FRAME_MAX_NUM :: 2
 swapchain_textures : [NUM_RENDERTARGETS]SwapChainTexture
 
 QueuedFrame :: struct {
@@ -70,22 +80,19 @@ main :: proc() {
     window = sdl.CreateWindow("Hello World!", window_width, window_height, {.RESIZABLE}); sdl_assert(window != nil)
 	defer sdl.DestroyWindow(window)
 
-    // Init NRI
+    // -------- Init NRI ---------
     graphics_api := nri.GraphicsAPI.D3D12
 
 	adapters_num : u32
 	nri.EnumerateAdapters(nil, &adapters_num)
 	// bytes := adapters_num * size_of(nri.AdapterDesc)
-	adapter_descs : nri.AdapterDesc
-	nri.EnumerateAdapters(&adapter_descs, &adapters_num)
-
+	adapter_descs : [^]nri.AdapterDesc
+	nri.EnumerateAdapters(adapter_descs, &adapters_num)
 	fmt.printf("nriEnumerateAdapters: %d adapters reported\n", adapters_num)
-
 	// for adapter_desc in adapter_descs {
-		fmt.printfln("Adapter: %s", adapter_descs.vendor)
+		fmt.printfln("Adapter: %s", adapter_descs[0].name)
 	// }
 
-	nri_device : ^nri.Device
     callback_interface := nri.CallbackInterface {
         MessageCallback = nri_message_callback,
         AbortExecution  = nri_abort_callback,
@@ -94,7 +101,7 @@ main :: proc() {
     device_creation_desc := nri.DeviceCreationDesc{
         graphicsAPI                      = graphics_api,
         // robustness                       = Robustness,
-        adapterDesc                      = &adapter_descs,
+        adapterDesc                      = &adapter_descs[0],
         callbackInterface                = callback_interface,
         // allocationCallbacks              = AllocationCallbacks,
         // queueFamilies                    = ^QueueFamilyDesc,
@@ -111,6 +118,7 @@ main :: proc() {
         // disableVKRayTracing              = bool,
         // disableD3D12EnhancedBarriers     = bool,
     }
+	nri_device : ^nri.Device
     if nri.CreateDevice(&device_creation_desc, &nri_device) != .SUCCESS {
         fmt.printfln("Failed to init nri device")
         os.exit(-1)
@@ -120,12 +128,22 @@ main :: proc() {
     NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriCoreInterface", size_of(NRI.core), &NRI.core))
     NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriSwapChainInterface", size_of(NRI.swapchain), &NRI.swapchain))
     NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriHelperInterface", size_of(NRI.helper), &NRI.helper))
+    NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriStreamerInterface", size_of(NRI.streamer), &NRI.streamer))
     // NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriImguiInterface", size_of(NRI.imgui), &NRI.imgui))
+
+    // streamer_desc := nri.StreamerDesc{
+    //     dynamicBufferMemoryLocation = .HOST_UPLOAD,
+    //     dynamicBufferDesc           = BufferDesc,
+    //     constantBufferSize          = u64,
+    //     constantBufferMemoryLocation= .HOST_UPLOAD,
+    //     queuedFrameNum              = u32,
+    // }
+
 
     window_handle := dxgi.HWND(sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil))
 
-    queue : ^nri.Queue
-    NRI.GetQueue(nri_device, .GRAPHICS, 0, &queue)
+    command_queue : ^nri.Queue
+    NRI.GetQueue(nri_device, .GRAPHICS, 0, &command_queue)
 
     frame_fence : ^nri.Fence
     NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, 0, &frame_fence))
@@ -138,7 +156,7 @@ main :: proc() {
             // wayland = WaylandWindow,
             // metal   = MetalWindow,
         },
-        queue         = queue,
+        queue         = command_queue,
         width         = nri.Dim_t(window_width),
         height        = nri.Dim_t(window_height),
         textureNum    = 2, // framboffers
@@ -186,6 +204,45 @@ main :: proc() {
         swapchain_textures[i] = swapchain_texture
 	}
 
+    frames : [BUFFERED_FRAME_MAX_NUM]Frame
+    for frame in frames {
+        NRI_ABORT_ON_FAILURE(NRI.CreateCommandAllocator(command_queue, frame.command_allocator))
+        NRI_ABORT_ON_FAILURE(NRI.CreateCommandBuffer(frame.command_allocator^, frame.command_buffer))
+    }
+
+    game_loop: for {
+
+        { // Handle keyboard and mouse input
+			event: sdl.Event
+			for sdl.PollEvent(&event) {				
+				#partial switch event.type {
+                    case .QUIT:
+                        break game_loop
+                        
+                        case .KEY_DOWN: // holding .KEY_DOWN has a delay then repeats downs, designed for text input not games
+                            #partial switch event.key.scancode {
+                            case .ESCAPE:
+                                break game_loop
+                        }
+                }
+            }
+		}
+
+
+        // Prepare frame...
+    
+    
+        // Render frame...
+    
+        // buffered_framne_index := frame_index
+
+    }
+
+
+
+
+
+
 
     // frame_index : u32
     // queued_frame_index := frame_index % queued_frame_num
@@ -200,15 +257,15 @@ main :: proc() {
 
 
 
-    // Create vertex buffer
-    vertex_buffer_desc := nri.BufferDesc{
-        usage           = {.VERTEX_BUFFER},
-        size            = size_of(triangleVertices),
-        structureStride= size_of(Vertex),
-    }
+    // // Create vertex buffer
+    // vertex_buffer_desc := nri.BufferDesc{
+    //     usage           = {.VERTEX_BUFFER},
+    //     size            = size_of(triangleVertices),
+    //     structureStride= size_of(Vertex),
+    // }
 
-    vertex_buffer : ^nri.Buffer
-    NRI.CreateBuffer(nri_device, &vertex_buffer_desc, &vertex_buffer)
+    // vertex_buffer : ^nri.Buffer
+    // NRI.CreateBuffer(nri_device, &vertex_buffer_desc, &vertex_buffer)
 
 
 
