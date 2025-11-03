@@ -21,6 +21,8 @@ NRI_ABORT_ON_FAILURE :: proc(result: nri.Result, location := #caller_location) {
 NRI_Interface :: struct {
 	using core: nri.CoreInterface,
 	using swapchain: nri.SwapChainInterface,
+	using helper: nri.HelperInterface,
+	// using imgui: nri.ImguiInterface,
 }
 
 SwapChainTexture :: struct {
@@ -32,6 +34,15 @@ SwapChainTexture :: struct {
 };
 
 NUM_RENDERTARGETS :: 2
+swapchain_textures : [NUM_RENDERTARGETS]SwapChainTexture
+
+QueuedFrame :: struct {
+    command_allocator: ^nri.CommandAllocator,
+    command_buffer: ^nri.CommandBuffer,
+};
+queued_frame_num :: 0
+queued_frames : [queued_frame_num]QueuedFrame
+
 window : ^sdl.Window
 window_height : i32 = 768
 window_width  : i32 = 1024
@@ -59,15 +70,14 @@ main :: proc() {
     window = sdl.CreateWindow("Hello World!", window_width, window_height, {.RESIZABLE}); sdl_assert(window != nil)
 	defer sdl.DestroyWindow(window)
 
-    NRI: NRI_Interface
+    // Init NRI
+    nri_device : ^nri.Device
+    graphics_api := nri.GraphicsAPI.D3D12
     callback_interface := nri.CallbackInterface {
         MessageCallback = nri_message_callback,
         AbortExecution  = nri_abort_callback,
         userArg        = nil,
     }
-
-    nri_device : ^nri.Device
-    graphics_api := nri.GraphicsAPI.D3D12
     device_creation_desc := nri.DeviceCreationDesc{
         graphicsAPI                      = graphics_api,
         // robustness                       = Robustness,
@@ -93,8 +103,11 @@ main :: proc() {
         os.exit(-1)
     }
     
+    NRI: NRI_Interface
     NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriCoreInterface", size_of(NRI.core), &NRI.core))
     NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriSwapChainInterface", size_of(NRI.swapchain), &NRI.swapchain))
+    NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriHelperInterface", size_of(NRI.helper), &NRI.helper))
+    // NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriImguiInterface", size_of(NRI.imgui), &NRI.imgui))
 
     window_handle := dxgi.HWND(sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil))
 
@@ -122,22 +135,6 @@ main :: proc() {
         scaling       = .STRETCH,
         // gravityX      = Gravity,
         // gravityY      = Gravity,
-        
-        // window           = {
-        //     windows = nri.Windows_Window{window_handle},
-        //     // x11    = X11_Window,
-        //     // wayland= Wayland_Window,
-        //     // metal  = Metal_Window,
-        // },
-        // command_queue     = command_queue,
-        // width             = u16(window_width),
-        // height            = u16(window_height),
-        // texture_num       = 2, // framebuffers
-        // format            = .BT709_G22_8BIT,
-        // vsync_interval    = 1,
-        // queue_frame_num   = u8,
-        // waitable          = bool,
-        // allow_low_latency = bool,
     }
     swapchain : ^nri.SwapChain
     if NRI.CreateSwapChain(nri_device, &nri_swapchain_desc, &swapchain) != .SUCCESS {
@@ -146,13 +143,13 @@ main :: proc() {
     }
 
     swapchain_texture_num: u32
-    swapchain_textures := NRI.GetSwapChainTextures(swapchain, &swapchain_texture_num)
-    swapchain_format := NRI.GetTextureDesc(swapchain_textures[0]).format
+    nri_swapchain_textures := NRI.GetSwapChainTextures(swapchain, &swapchain_texture_num)
+    swapchain_format := NRI.GetTextureDesc(nri_swapchain_textures[0]).format
     fmt.printfln("Swapchain format: %v", swapchain_format)
 	fmt.printfln("Number of swapchain textures: %d", swapchain_texture_num)
 
 	for i:u32=0; i<swapchain_texture_num; i+=1 {
-		texture_view_desc := nri.Texture2DViewDesc{swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0}
+		texture_view_desc := nri.Texture2DViewDesc{nri_swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0}
 
 		color_attachment : ^nri.Descriptor
 		NRI_ABORT_ON_FAILURE(NRI.CreateTexture2DView(&texture_view_desc, &color_attachment))
@@ -161,23 +158,32 @@ main :: proc() {
 
 		acquire_semaphore : ^nri.Fence
 		NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, SWAPCHAIN_SEMAPHORE, &acquire_semaphore))
-		// NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, 0, &acquire_semaphore))
 
 		release_semaphore : ^nri.Fence
 		NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, SWAPCHAIN_SEMAPHORE, &release_semaphore))
-		// NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, 0, &release_semaphore))
 
 		swapchain_texture := SwapChainTexture{
 			acquire_semaphore = acquire_semaphore,
 			release_semaphore = release_semaphore,
-			texture           = swapchain_textures[i],
+			texture           = nri_swapchain_textures[i],
 			color_attachment  = color_attachment,
 			attachment_format = swapchain_format,
 		}
 
-        swapchain_textures[i] = swapchain_texture.texture
+        swapchain_textures[i] = swapchain_texture
 	}
 
+
+    // frame_index : u32
+    // queued_frame_index := frame_index % queued_frame_num
+    // queued_frame := queued_frames[queued_frame_index]
+
+
+    // recycled_semaphore_index := frame_index % len(swapchain_textures)
+    // swapchain_acquire_semaphore := swapchain_textures[0].acquire_semaphore
+    
+    // current_swapchain_texture_index : u32 = 0
+    // NRI.AcquireNextTexture(swapchain, swapchain_acquire_semaphore, &current_swapchain_texture_index)
 
 
 
