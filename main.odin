@@ -35,8 +35,8 @@ SwapChainTexture :: struct {
 };
 
 Frame :: struct {
-    command_allocator             : ^^nri.CommandAllocator,
-    command_buffer                : ^^nri.CommandBuffer,
+    command_allocator             : ^nri.CommandAllocator,
+    command_buffer                : ^nri.CommandBuffer,
     constant_buffer_view          : ^nri.Descriptor,
     constant_buffer_descriptor_set: ^nri.DescriptorSet,
     constant_buffer_view_offset   : u64,
@@ -83,15 +83,10 @@ main :: proc() {
     // -------- Init NRI ---------
     graphics_api := nri.GraphicsAPI.D3D12
 
-	adapters_num : u32
-	nri.EnumerateAdapters(nil, &adapters_num)
-	// bytes := adapters_num * size_of(nri.AdapterDesc)
-	adapter_descs : [^]nri.AdapterDesc
-	nri.EnumerateAdapters(adapter_descs, &adapters_num)
-	fmt.printf("nriEnumerateAdapters: %d adapters reported\n", adapters_num)
-	// for adapter_desc in adapter_descs {
-		fmt.printfln("Adapter: %s", adapter_descs[0].name)
-	// }
+	adapters_num : u32 = 1 // This should choose the best adapter (graphics card)
+	adapter_desc : nri.AdapterDesc // Getting multiple adapters with [^]nri.AdapterDesc seems to not work
+	NRI_ABORT_ON_FAILURE(nri.EnumerateAdapters(&adapter_desc, &adapters_num))
+    // fmt.printfln("Adapter name: %s", adapter_desc.name)
 
     callback_interface := nri.CallbackInterface {
         MessageCallback = nri_message_callback,
@@ -101,7 +96,7 @@ main :: proc() {
     device_creation_desc := nri.DeviceCreationDesc{
         graphicsAPI                      = graphics_api,
         // robustness                       = Robustness,
-        adapterDesc                      = &adapter_descs[0],
+        adapterDesc                      = &adapter_desc,
         callbackInterface                = callback_interface,
         // allocationCallbacks              = AllocationCallbacks,
         // queueFamilies                    = ^QueueFamilyDesc,
@@ -140,10 +135,11 @@ main :: proc() {
     // }
 
 
-    window_handle := dxgi.HWND(sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil))
+    // window_handle := dxgi.HWND(sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil))
+    window_handle := sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil)
 
     command_queue : ^nri.Queue
-    NRI.GetQueue(nri_device, .GRAPHICS, 0, &command_queue)
+    NRI_ABORT_ON_FAILURE(NRI.GetQueue(nri_device, .GRAPHICS, 0, &command_queue))
 
     frame_fence : ^nri.Fence
     NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, 0, &frame_fence))
@@ -203,13 +199,14 @@ main :: proc() {
 
         swapchain_textures[i] = swapchain_texture
 	}
-
-    frames : [BUFFERED_FRAME_MAX_NUM]Frame
-    for frame in frames {
-        NRI_ABORT_ON_FAILURE(NRI.CreateCommandAllocator(command_queue, frame.command_allocator))
-        NRI_ABORT_ON_FAILURE(NRI.CreateCommandBuffer(frame.command_allocator^, frame.command_buffer))
+    
+    frames : [BUFFERED_FRAME_MAX_NUM]Frame 
+    for &frame in frames[:] {
+        NRI_ABORT_ON_FAILURE(NRI.CreateCommandAllocator(command_queue, &frame.command_allocator))
+        NRI_ABORT_ON_FAILURE(NRI.CreateCommandBuffer(frame.command_allocator, &frame.command_buffer))
     }
 
+    frame_index := 0
     game_loop: for {
 
         { // Handle keyboard and mouse input
@@ -233,8 +230,31 @@ main :: proc() {
     
     
         // Render frame...
-    
-        // buffered_framne_index := frame_index
+        
+        buffered_framne_index := frame_index % BUFFERED_FRAME_MAX_NUM
+        frame := frames[buffered_framne_index]
+        // fmt.printfln()
+        // if frame_index >= BUFFERED_FRAME_MAX_NUM {
+        //     NRI.Wait(frame_fence, 1 + frame_index - BUFFERED_FRAME_MAX_NUM)
+        //     NRI.ResetCommandAllocator(frames[buffered_framne_index].command_allocator^)
+        // }
+
+        // NRI.EndCommandBuffer(frame.command_buffer)
+
+        // queue_submit_desc := nri.QueueSubmitDesc{
+        //     // waitFences      = [^]FenceSubmitDesc,
+        //     // waitFenceNum    = u32,
+        //     commandBuffers  = &frame.command_buffer,
+        //     commandBufferNum= 1,
+        //     // signalFences    = [^]FenceSubmitDesc,
+        //     // signalFenceNum  = u32,
+        //     // swapChain       = ^SwapChain,           // required if "NRILowLatency" is enabled in the swap chain
+        // }
+        // NRI.QueueSubmit(command_queue, &queue_submit_desc)
+
+        // NRI.QueuePresent(swapchain, nil)
+
+        frame_index += 1
 
     }
 
