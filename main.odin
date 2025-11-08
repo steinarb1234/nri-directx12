@@ -1,13 +1,12 @@
 package main
 
 import "core:fmt"
-import "core:mem"
 import "core:sys/windows"
 import "core:os"
 import sdl "vendor:sdl3"
-import d3d12 "vendor:directx/d3d12"
-import dxgi "vendor:directx/dxgi"
-import d3dc "vendor:directx/d3d_compiler"
+// import d3d12 "vendor:directx/d3d12"
+// import dxgi "vendor:directx/dxgi"
+// import d3dc "vendor:directx/d3d_compiler"
 
 import nri "libs/NRI-odin"
 
@@ -19,11 +18,11 @@ NRI_ABORT_ON_FAILURE :: proc(result: nri.Result, location := #caller_location) {
 }
 
 NRI_Interface :: struct {
-	using core: nri.CoreInterface,
-	using swapchain: nri.SwapChainInterface,
-	using helper: nri.HelperInterface,
+    using core     : nri.CoreInterface,
+    using swapchain: nri.SwapChainInterface,
+    using helper   : nri.HelperInterface,
     using streamer : nri.StreamerInterface,
-	// using imgui: nri.ImguiInterface,
+	// using imgui    : nri.ImguiInterface,
 }
 
 SwapChainTexture :: struct {
@@ -86,12 +85,12 @@ main :: proc() {
 	adapters_num : u32 = 1 // This should choose the best adapter (graphics card)
 	adapter_desc : nri.AdapterDesc // Getting multiple adapters with [^]nri.AdapterDesc seems to not work
 	NRI_ABORT_ON_FAILURE(nri.EnumerateAdapters(&adapter_desc, &adapters_num))
-    // fmt.printfln("Adapter name: %s", adapter_desc.name)
+    // fmt.printfln("Adapter: %v", adapter_desc)
 
     callback_interface := nri.CallbackInterface {
         MessageCallback = nri_message_callback,
         AbortExecution  = nri_abort_callback,
-        userArg        = nil,
+        userArg         = nil,
     }
     device_creation_desc := nri.DeviceCreationDesc{
         graphicsAPI                      = graphics_api,
@@ -216,7 +215,7 @@ main :: proc() {
                     case .QUIT:
                         break game_loop
                         
-                        case .KEY_DOWN: // holding .KEY_DOWN has a delay then repeats downs, designed for text input not games
+                        case .KEY_DOWN: // holding .KEY_DOWN has a delay then repeats downs, designed for text input
                             #partial switch event.key.scancode {
                             case .ESCAPE:
                                 break game_loop
