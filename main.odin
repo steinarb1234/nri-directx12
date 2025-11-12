@@ -77,7 +77,7 @@ triangle_vertices :: [3]Vertex{
 
 Index :: u16
 
-triangle_indeces :: [3]Index{0, 1, 3}
+triangle_indeces :: [3]Index{0, 1, 2}
 
 
 main :: proc() {
@@ -114,7 +114,7 @@ main :: proc() {
         // vkBindingOffsets                 = VKBindingOffsets,
         // vkExtensions                     = VKExtensions,
         enableNRIValidation              = true,
-        enableGraphicsAPIValidation      = true,
+        enableGraphicsAPIValidation      = true, // Note: Enabled causes lag for window interactions
         // enableD3D11CommandBufferEmulation= bool,
         // enableD3D12RayTracingValidation  = bool,
         // enableMemoryZeroInitialization   = bool,
@@ -167,7 +167,7 @@ main :: proc() {
         queue         = command_queue,
         width         = nri.Dim_t(window_width),
         height        = nri.Dim_t(window_height),
-        textureNum    = 2, // framboffers
+        textureNum    = 2, // frambuffers
         format        = .BT709_G22_8BIT,
         // flags         = SwapChainBits,
         // queuedFrameNum= u8,
@@ -274,8 +274,8 @@ main :: proc() {
     
         // Render frame...
         
-        buffered_framne_index := frame_index % BUFFERED_FRAME_MAX_NUM
-        frame := frames[buffered_framne_index]
+        buffered_frame_index := frame_index % BUFFERED_FRAME_MAX_NUM
+        frame := frames[buffered_frame_index]
 
         recycled_semaphore_index := frame_index % len(swapchain_textures)
         swapchain_acquire_semaphore := swapchain_textures[recycled_semaphore_index].acquire_semaphore
@@ -327,6 +327,7 @@ main :: proc() {
             {
                 // ... annotation
 
+                // Clear screen
                 clear_desc := nri.ClearDesc{
                     value               = {
                         color = {
@@ -336,8 +337,7 @@ main :: proc() {
                     planes              = {.COLOR},
                     colorAttachmentIndex= 0,
                 }
-                rect1 := nri.Rect{0, 0, nri.Dim_t(window_width), nri.Dim_t(window_height/3)}
-
+                rect1 := nri.Rect{0, 0, nri.Dim_t(window_width), nri.Dim_t(window_height)}
                 NRI.CmdClearAttachments(command_buffer, &clear_desc, 1, &rect1, 1)
             }
             NRI.CmdEndRendering(command_buffer)
@@ -370,7 +370,7 @@ main :: proc() {
                 commandBufferNum= 1,
                 signalFences    = &rendering_finished_fence,
                 signalFenceNum  = 1,
-                // swapChain       = ^SwapChain,           // required if "NRILowLatency" is enabled in the swap chain
+                swapChain       = swapchain,           // required if "NRILowLatency" is enabled in the swap chain
             }
             NRI.QueueSubmit(command_queue, &queue_submit_desc)
         }
@@ -386,55 +386,10 @@ main :: proc() {
         //     NRI.ResetCommandAllocator(frames[buffered_framne_index].command_allocator^)
         // }
 
-        // NRI.EndCommandBuffer(frame.command_buffer)
-
-        // queue_submit_desc := nri.QueueSubmitDesc{
-        //     // waitFences      = [^]FenceSubmitDesc,
-        //     // waitFenceNum    = u32,
-        //     commandBuffers  = &frame.command_buffer,
-        //     commandBufferNum= 1,
-        //     // signalFences    = [^]FenceSubmitDesc,
-        //     // signalFenceNum  = u32,
-        //     // swapChain       = ^SwapChain,           // required if "NRILowLatency" is enabled in the swap chain
-        // }
-        // NRI.QueueSubmit(command_queue, &queue_submit_desc)
-
-        // NRI.QueuePresent(swapchain, nil)
 
         frame_index += 1
 
     }
-
-
-
-
-
-
-
-    // frame_index : u32
-    // queued_frame_index := frame_index % queued_frame_num
-    // queued_frame := queued_frames[queued_frame_index]
-
-
-    // recycled_semaphore_index := frame_index % len(swapchain_textures)
-    // swapchain_acquire_semaphore := swapchain_textures[0].acquire_semaphore
-    
-    // current_swapchain_texture_index : u32 = 0
-    // NRI.AcquireNextTexture(swapchain, swapchain_acquire_semaphore, &current_swapchain_texture_index)
-
-
-
-    // // Create vertex buffer
-    // vertex_buffer_desc := nri.BufferDesc{
-    //     usage           = {.VERTEX_BUFFER},
-    //     size            = size_of(triangleVertices),
-    //     structureStride= size_of(Vertex),
-    // }
-
-    // vertex_buffer : ^nri.Buffer
-    // NRI.CreateBuffer(nri_device, &vertex_buffer_desc, &vertex_buffer)
-
-
 
     // Destroy 
     nri.DestroyDevice(device)
