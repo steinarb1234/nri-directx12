@@ -351,10 +351,12 @@ main :: proc() {
             NRI.CmdEndRendering(command_buffer)
 
             texture_barriers.before = texture_barriers.after
+            // stagebits_none :: transmute(nri.StageBits) u32(0x7fffffff)
             texture_barriers.after = {
                 access = {},
                 layout = .PRESENT,
-                stages = {},
+                stages = nri.STAGEBITS_NONE,
+                // stages = stagebits_none,
             }
             NRI.CmdBarrier(command_buffer, &barrier_desc)
         }
