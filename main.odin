@@ -4,10 +4,6 @@ import "core:fmt"
 import "core:sys/windows"
 import "core:os"
 import sdl "vendor:sdl3"
-// import d3d12 "vendor:directx/d3d12"
-// import dxgi "vendor:directx/dxgi"
-// import d3dc "vendor:directx/d3d_compiler"
-
 import nri "libs/NRI-odin"
 
 NRI_ABORT_ON_FAILURE :: proc(result: nri.Result, location := #caller_location) {
@@ -45,16 +41,15 @@ NUM_RENDERTARGETS :: 2
 BUFFERED_FRAME_MAX_NUM :: 2
 swapchain_textures : [NUM_RENDERTARGETS]SwapChainTexture
 
-vsync_interval :: false
-
 QueuedFrame :: struct {
     command_allocator: ^nri.CommandAllocator,
     command_buffer: ^nri.CommandBuffer,
 };
+queued_frames : [queued_frame_num]QueuedFrame
+
+vsync_interval :: false
 when vsync_interval {queued_frame_num :: 2}
 else                {queued_frame_num :: 3}
-// queued_frame_num :: vsync_interval ? 2 : 3
-queued_frames : [queued_frame_num]QueuedFrame
 
 window : ^sdl.Window
 window_height : i32 = 768
@@ -97,7 +92,7 @@ main :: proc() {
     graphics_api := nri.GraphicsAPI.D3D12
 
 	adapters_num : u32 = 1 // This should choose the best adapter (graphics card)
-	adapter_desc : nri.AdapterDesc // Getting multiple adapters with [^]nri.AdapterDesc seems to not work
+	adapter_desc : nri.AdapterDesc // Getting multiple adapters with [^]nri.AdapterDesc is buggy
 	NRI_ABORT_ON_FAILURE(nri.EnumerateAdapters(&adapter_desc, &adapters_num))
     // fmt.printfln("Adapter: %v", adapter_desc)
 
@@ -126,49 +121,48 @@ main :: proc() {
         // disableVKRayTracing              = bool,
         // disableD3D12EnhancedBarriers     = bool,
     }
-	nri_device : ^nri.Device
-    if nri.CreateDevice(&device_creation_desc, &nri_device) != .SUCCESS {
+	device : ^nri.Device
+    if nri.CreateDevice(&device_creation_desc, &device) != .SUCCESS {
         fmt.printfln("Failed to init nri device")
         os.exit(-1)
     }
     
     NRI: NRI_Interface
-    NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriCoreInterface", size_of(NRI.core), &NRI.core))
-    NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriSwapChainInterface", size_of(NRI.swapchain), &NRI.swapchain))
-    NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriHelperInterface", size_of(NRI.helper), &NRI.helper))
-    NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriStreamerInterface", size_of(NRI.streamer), &NRI.streamer))
+    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriCoreInterface", size_of(NRI.core), &NRI.core))
+    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriSwapChainInterface", size_of(NRI.swapchain), &NRI.swapchain))
+    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriHelperInterface", size_of(NRI.helper), &NRI.helper))
+    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriStreamerInterface", size_of(NRI.streamer), &NRI.streamer))
     // NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriImguiInterface", size_of(NRI.imgui), &NRI.imgui))
 
     streamer_desc := nri.StreamerDesc{
-        dynamicBufferMemoryLocation = .HOST_UPLOAD,
-        dynamicBufferDesc           = {
-            size           = 0,
-            structureStride= 0,
-            usage          = {.VERTEX_BUFFER, .INDEX_BUFFER},
+        dynamicBufferMemoryLocation  = .HOST_UPLOAD,
+        dynamicBufferDesc            = {
+            size            = 0,
+            structureStride = 0,
+            usage           = {.VERTEX_BUFFER, .INDEX_BUFFER},
         },
-        // constantBufferSize          = u64,
-        constantBufferMemoryLocation= .HOST_UPLOAD,
-        queuedFrameNum              = queued_frame_num,
+        // constantBufferSize           = u64,
+        constantBufferMemoryLocation = .HOST_UPLOAD,
+        queuedFrameNum               = queued_frame_num,
     }
     streamer : ^nri.Streamer
-    NRI_ABORT_ON_FAILURE(NRI.CreateStreamer(nri_device, &streamer_desc, &streamer))
+    NRI_ABORT_ON_FAILURE(NRI.CreateStreamer(device, &streamer_desc, &streamer))
 
     command_queue : ^nri.Queue
-    NRI_ABORT_ON_FAILURE(NRI.GetQueue(nri_device, .GRAPHICS, 0, &command_queue))
+    NRI_ABORT_ON_FAILURE(NRI.GetQueue(device, .GRAPHICS, 0, &command_queue))
     
     frame_fence : ^nri.Fence
-    NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, 0, &frame_fence))
+    NRI_ABORT_ON_FAILURE(NRI.CreateFence(device, 0, &frame_fence))
     
-    // window_handle := dxgi.HWND(sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil))
     window_handle := sdl.GetPointerProperty(sdl.GetWindowProperties(window), sdl.PROP_WINDOW_WIN32_HWND_POINTER, nil)
     
-    // Create the swapchain
+    // Create swapchain
     nri_swapchain_desc := nri.SwapChainDesc{
         window        = {
             windows = nri.WindowsWindow{window_handle},
-            // x11     = X11Window,
-            // wayland = WaylandWindow,
-            // metal   = MetalWindow,
+            // x11     = nri.X11Window,
+            // wayland = nri.WaylandWindow,
+            // metal   = nri.MetalWindow,
         },
         queue         = command_queue,
         width         = nri.Dim_t(window_width),
@@ -182,41 +176,40 @@ main :: proc() {
         // gravityY      = Gravity,
     }
     swapchain : ^nri.SwapChain
-    if NRI.CreateSwapChain(nri_device, &nri_swapchain_desc, &swapchain) != .SUCCESS {
+    if NRI.CreateSwapChain(device, &nri_swapchain_desc, &swapchain) != .SUCCESS {
         fmt.printfln("Failed to create nri swachain")
         os.exit(-1)
     }
 
-    swapchain_texture_num: u32
-    nri_swapchain_textures := NRI.GetSwapChainTextures(swapchain, &swapchain_texture_num)
-    swapchain_format := NRI.GetTextureDesc(nri_swapchain_textures[0]).format
-    fmt.printfln("Swapchain format: %v", swapchain_format)
-	fmt.printfln("Number of swapchain textures: %d", swapchain_texture_num)
+    { // Create swapchain textures
+        swapchain_texture_num: u32
+        nri_swapchain_textures := NRI.GetSwapChainTextures(swapchain, &swapchain_texture_num)
+        swapchain_format := NRI.GetTextureDesc(nri_swapchain_textures[0]).format
+        for i:u32=0; i<swapchain_texture_num; i+=1 {
+            texture_view_desc := nri.Texture2DViewDesc{nri_swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0}
 
-	for i:u32=0; i<swapchain_texture_num; i+=1 {
-		texture_view_desc := nri.Texture2DViewDesc{nri_swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0}
+            color_attachment : ^nri.Descriptor
+            NRI_ABORT_ON_FAILURE(NRI.CreateTexture2DView(&texture_view_desc, &color_attachment))
 
-		color_attachment : ^nri.Descriptor
-		NRI_ABORT_ON_FAILURE(NRI.CreateTexture2DView(&texture_view_desc, &color_attachment))
+            SWAPCHAIN_SEMAPHORE :: ~u64(0)
 
-        SWAPCHAIN_SEMAPHORE :: ~u64(0)
+            acquire_semaphore : ^nri.Fence
+            NRI_ABORT_ON_FAILURE(NRI.CreateFence(device, SWAPCHAIN_SEMAPHORE, &acquire_semaphore))
 
-		acquire_semaphore : ^nri.Fence
-		NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, SWAPCHAIN_SEMAPHORE, &acquire_semaphore))
+            release_semaphore : ^nri.Fence
+            NRI_ABORT_ON_FAILURE(NRI.CreateFence(device, SWAPCHAIN_SEMAPHORE, &release_semaphore))
 
-		release_semaphore : ^nri.Fence
-		NRI_ABORT_ON_FAILURE(NRI.CreateFence(nri_device, SWAPCHAIN_SEMAPHORE, &release_semaphore))
+            swapchain_texture := SwapChainTexture{
+                acquire_semaphore = acquire_semaphore,
+                release_semaphore = release_semaphore,
+                texture           = nri_swapchain_textures[i],
+                color_attachment  = color_attachment,
+                attachment_format = swapchain_format,
+            }
 
-		swapchain_texture := SwapChainTexture{
-			acquire_semaphore = acquire_semaphore,
-			release_semaphore = release_semaphore,
-			texture           = nri_swapchain_textures[i],
-			color_attachment  = color_attachment,
-			attachment_format = swapchain_format,
-		}
-
-        swapchain_textures[i] = swapchain_texture
-	}
+            swapchain_textures[i] = swapchain_texture
+        }
+    }
     
     frames : [BUFFERED_FRAME_MAX_NUM]Frame 
     for &frame in frames[:] {
@@ -248,9 +241,9 @@ main :: proc() {
         }
 
         root_constant := nri.RootConstantDesc{
-            registerIndex= 1,
-            size         = size_of(f32),
-            shaderStages = {.FRAGMENT_SHADER},
+            registerIndex = 1,
+            size          = size_of(f32),
+            shaderStages  = {.FRAGMENT_SHADER},
         }
         rootSampler := nri.RootSamplerDesc{0, sampler_desc, {.FRAGMENT_SHADER}}
         // setConstantBuffer := nri.DescriptorRangeDesc{0, 1, .CONSTANT_BUFFER,}
@@ -259,7 +252,6 @@ main :: proc() {
 
     frame_index := 0
     game_loop: for {
-
         { // Handle keyboard and mouse input
 			event: sdl.Event
 			for sdl.PollEvent(&event) {				
@@ -351,12 +343,10 @@ main :: proc() {
             NRI.CmdEndRendering(command_buffer)
 
             texture_barriers.before = texture_barriers.after
-            // stagebits_none :: transmute(nri.StageBits) u32(0x7fffffff)
             texture_barriers.after = {
                 access = {},
                 layout = .PRESENT,
                 stages = nri.STAGEBITS_NONE,
-                // stages = stagebits_none,
             }
             NRI.CmdBarrier(command_buffer, &barrier_desc)
         }
@@ -447,6 +437,6 @@ main :: proc() {
 
 
     // Destroy 
-    nri.DestroyDevice(nri_device)
+    nri.DestroyDevice(device)
 
 }

@@ -32,7 +32,7 @@ sdl_log :: proc "c" (userdata: rawptr, category: sdl.LogCategory, priority: sdl.
 }
 
 sdl_assert :: proc(ok: bool) {
-	if !ok do log.panicf("SDL Error: {}", sdl.GetError())
+	if !ok do log.panicf("SDL Error: %s", sdl.GetError())
 }
 
 nri_message_callback :: proc "c" (
