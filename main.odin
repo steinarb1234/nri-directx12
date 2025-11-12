@@ -354,9 +354,8 @@ main :: proc() {
             texture_barriers.after = {
                 access = {},
                 layout = .PRESENT,
-                stages = nri.STAGEBITS_NONE,
+                stages = {},
             }
-
             NRI.CmdBarrier(command_buffer, &barrier_desc)
         }
         NRI.EndCommandBuffer(command_buffer)
