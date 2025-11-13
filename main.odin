@@ -4,11 +4,25 @@ import "core:fmt"
 import "core:sys/windows"
 import "core:os"
 import sdl "vendor:sdl3"
+import d3d12 "vendor:directx/d3d12"
+
+// Nvidia NRI
 import nri "libs/NRI-odin"
+
+// Imgui
+DISABLE_DOCKING :: #config(DISABLE_DOCKING, false) // Allows moving imgui window out of the main window
+import im "libs/odin-imgui"
+import "libs/odin-imgui/imgui_impl_nri"
+// import    "libs/odin-imgui/imgui_impl_sdl3"
+// // import    "libs/odin-imgui/imgui_impl_opengl3"
+// import    "libs/odin-imgui/imgui_impl_dx12"
+
+
 
 NRI_ABORT_ON_FAILURE :: proc(result: nri.Result, location := #caller_location) {
     if result != .SUCCESS {
         fmt.eprintfln("NRI failure: %v at %s:%d", result, location.file_path, location.line)
+        nri.DestroyDevice(device)
         os.exit(-1)
     }
 }
@@ -54,6 +68,8 @@ else                {queued_frame_num :: 3}
 window : ^sdl.Window
 window_height : i32 = 768
 window_width  : i32 = 1024
+
+device : ^nri.Device
 
 SHADER_FILE :: "shaders.hlsl"
 shaders_hlsl := #load(SHADER_FILE)
@@ -121,7 +137,7 @@ main :: proc() {
         // disableVKRayTracing              = bool,
         // disableD3D12EnhancedBarriers     = bool,
     }
-	device : ^nri.Device
+	// device : ^nri.Device
     if nri.CreateDevice(&device_creation_desc, &device) != .SUCCESS {
         fmt.printfln("Failed to init nri device")
         os.exit(-1)
@@ -132,7 +148,8 @@ main :: proc() {
     NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriSwapChainInterface", size_of(NRI.swapchain), &NRI.swapchain))
     NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriHelperInterface", size_of(NRI.helper), &NRI.helper))
     NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriStreamerInterface", size_of(NRI.streamer), &NRI.streamer))
-    // NRI_ABORT_ON_FAILURE(nri.GetInterface(nri_device, "NriImguiInterface", size_of(NRI.imgui), &NRI.imgui))
+    // NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NRIImguiInterface", size_of(NRI.imgui), &NRI.imgui))
+
 
     streamer_desc := nri.StreamerDesc{
         dynamicBufferMemoryLocation  = .HOST_UPLOAD,
@@ -216,6 +233,35 @@ main :: proc() {
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandAllocator(command_queue, &frame.command_allocator))
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandBuffer(frame.command_allocator, &frame.command_buffer))
     }
+
+    // --------- Init Imgui ---------------
+	im.CHECKVERSION()
+	im.CreateContext()
+	defer im.DestroyContext()
+	io := im.GetIO()
+	io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
+	when !DISABLE_DOCKING {
+		io.ConfigFlags += {.DockingEnable}
+		io.ConfigFlags += {.ViewportsEnable}
+
+		style := im.GetStyle()
+		style.WindowRounding = 0
+		style.Colors[im.Col.WindowBg].w =1
+	}
+	im.StyleColorsDark()
+
+    check_nri_result_fn :: proc(err: nri.Result) {
+        fmt.printfln("Result: %v", err)
+    }
+
+    imgui_init_info := imgui_impl_nri.InitInfo{
+        Device           = device,
+        Queue            = command_queue,
+        CheckNRIResultFn = check_nri_result_fn,
+    }
+    imgui_impl_nri.Init(&imgui_init_info)
+    imgui_impl_nri.CreateFontsTexture()
+
 
     { // Pipeline layout
         sampler_desc := nri.SamplerDesc{
@@ -379,8 +425,6 @@ main :: proc() {
         NRI.QueuePresent(swapchain, swapchain_texture.release_semaphore)
 
 
-
-        // fmt.printfln()
         // if frame_index >= BUFFERED_FRAME_MAX_NUM {
         //     NRI.Wait(frame_fence, 1 + frame_index - BUFFERED_FRAME_MAX_NUM)
         //     NRI.ResetCommandAllocator(frames[buffered_framne_index].command_allocator^)

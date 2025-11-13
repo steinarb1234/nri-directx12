@@ -56,5 +56,7 @@ nri_message_callback :: proc "c" (
 nri_abort_callback :: proc "c"(user_data: rawptr) {
 	context = runtime.default_context()
     fmt.eprintfln("[NRI] AbortExecution called. Exiting.")
+    nri.DestroyDevice(device)
+
     os.exit(-1)
 }
