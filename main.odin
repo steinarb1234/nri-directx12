@@ -10,8 +10,8 @@ import d3d12 "vendor:directx/d3d12"
 import nri "libs/NRI-odin"
 
 // Imgui
-DISABLE_DOCKING :: #config(DISABLE_DOCKING, false) // Allows moving imgui window out of the main window
-import im "libs/odin-imgui"
+// DISABLE_DOCKING :: #config(DISABLE_DOCKING, false) // Allows moving imgui window out of the main window
+// import im "libs/odin-imgui"
 // import "libs/odin-imgui/imgui_impl_nri"
 // import    "libs/odin-imgui/imgui_impl_sdl3"
 // import    "libs/odin-imgui/imgui_impl_opengl3"
@@ -234,34 +234,34 @@ main :: proc() {
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandBuffer(frame.command_allocator, &frame.command_buffer))
     }
 
-    // --------- Init Imgui ---------------
-	im.CHECKVERSION()
-	im.CreateContext()
-	defer im.DestroyContext()
-	io := im.GetIO()
-    io.DisplaySize = im.Vec2{f32(window_width), f32(window_height)}
-	io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
-	when !DISABLE_DOCKING {
-		io.ConfigFlags += {.DockingEnable}
-		io.ConfigFlags += {.ViewportsEnable}
+    // // --------- Init Imgui ---------------
+	// im.CHECKVERSION()
+	// im.CreateContext()
+	// defer im.DestroyContext()
+	// io := im.GetIO()
+    // io.DisplaySize = im.Vec2{f32(window_width), f32(window_height)}
+	// io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
+	// when !DISABLE_DOCKING {
+	// 	io.ConfigFlags += {.DockingEnable}
+	// 	io.ConfigFlags += {.ViewportsEnable}
 
-		style := im.GetStyle()
-		style.WindowRounding = 0
-		style.Colors[im.Col.WindowBg].w =1
-	}
-	im.StyleColorsDark()
+	// 	style := im.GetStyle()
+	// 	style.WindowRounding = 0
+	// 	style.Colors[im.Col.WindowBg].w =1
+	// }
+	// im.StyleColorsDark()
     
-    im_interface : nri.ImguiInterface
-    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
-    nri_imgui : ^nri.Imgui
-    imgui_desc := nri.ImguiDesc{
-        descriptorPoolSize = 128
-    }
-    if im_interface.CreateImgui(device, &imgui_desc, &nri_imgui) != .SUCCESS {
-        fmt.printfln("Failed to create imgui")
-    }
-    copy_imgui_data_desc : nri.CopyImguiDataDesc
-    im_interface.CmdCopyImguiData(nil, streamer, nri_imgui, &copy_imgui_data_desc)
+    // im_interface : nri.ImguiInterface
+    // NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
+    // nri_imgui : ^nri.Imgui
+    // imgui_desc := nri.ImguiDesc{
+    //     descriptorPoolSize = 128
+    // }
+    // if im_interface.CreateImgui(device, &imgui_desc, &nri_imgui) != .SUCCESS {
+    //     fmt.printfln("Failed to create imgui")
+    // }
+    // copy_imgui_data_desc : nri.CopyImguiDataDesc
+    // im_interface.CmdCopyImguiData(nil, streamer, nri_imgui, &copy_imgui_data_desc)
 
     
     // check_nri_result_fn :: proc(err: nri.Result) {
