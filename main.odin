@@ -32,7 +32,7 @@ NRI_Interface :: struct {
     using swapchain: nri.SwapChainInterface,
     using helper   : nri.HelperInterface,
     using streamer : nri.StreamerInterface,
-	// using imgui    : nri.ImguiInterface,
+	// using imgui    : nri.ImguiInterface, // Requires compiling NRI with imgui extension enabled
 }
 
 SwapChainTexture :: struct {
@@ -130,7 +130,7 @@ main :: proc() {
         // vkBindingOffsets                 = VKBindingOffsets,
         // vkExtensions                     = VKExtensions,
         enableNRIValidation              = true,
-        enableGraphicsAPIValidation      = true, // Note: Enabled causes lag for window interactions
+        // enableGraphicsAPIValidation      = true, // Note: Enabled causes lag for window interactions
         // enableD3D11CommandBufferEmulation= bool,
         // enableD3D12RayTracingValidation  = bool,
         // enableMemoryZeroInitialization   = bool,
@@ -234,47 +234,49 @@ main :: proc() {
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandBuffer(frame.command_allocator, &frame.command_buffer))
     }
 
-    // // --------- Init Imgui ---------------
-	// im.CHECKVERSION()
-	// im.CreateContext()
-	// defer im.DestroyContext()
-	// io := im.GetIO()
-    // io.DisplaySize = im.Vec2{f32(window_width), f32(window_height)}
-	// io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
-	// when !DISABLE_DOCKING {
-	// 	io.ConfigFlags += {.DockingEnable}
-	// 	io.ConfigFlags += {.ViewportsEnable}
 
-	// 	style := im.GetStyle()
-	// 	style.WindowRounding = 0
-	// 	style.Colors[im.Col.WindowBg].w =1
-	// }
-	// im.StyleColorsDark()
-    
-    // im_interface : nri.ImguiInterface
-    // NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
-    // nri_imgui : ^nri.Imgui
-    // imgui_desc := nri.ImguiDesc{
-    //     descriptorPoolSize = 128
-    // }
-    // if im_interface.CreateImgui(device, &imgui_desc, &nri_imgui) != .SUCCESS {
-    //     fmt.printfln("Failed to create imgui")
-    // }
-    // copy_imgui_data_desc : nri.CopyImguiDataDesc
-    // im_interface.CmdCopyImguiData(nil, streamer, nri_imgui, &copy_imgui_data_desc)
+    { // Init Imgui 
+		// im.CHECKVERSION()
+		// im.CreateContext()
+		// defer im.DestroyContext()
+		// io := im.GetIO()
+	    // io.DisplaySize = im.Vec2{f32(window_width), f32(window_height)}
+		// io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
+		// when !DISABLE_DOCKING {
+		// 	io.ConfigFlags += {.DockingEnable}
+		// 	io.ConfigFlags += {.ViewportsEnable}
+	
+		// 	style := im.GetStyle()
+		// 	style.WindowRounding = 0
+		// 	style.Colors[im.Col.WindowBg].w =1
+		// }
+		// im.StyleColorsDark()
+	    
+	    // im_interface : nri.ImguiInterface
+	    // NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
+	    
+		// nri_imgui : ^nri.Imgui
+	    // imgui_desc := nri.ImguiDesc{
+	    //     descriptorPoolSize = 1024
+	    // }
+	    // NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
 
-    
-    // check_nri_result_fn :: proc(err: nri.Result) {
-    //     fmt.printfln("Result: %v", err)
-    // }
-
-    // imgui_init_info := imgui_impl_nri.InitInfo{
-    //     Device           = device,
-    //     Queue            = command_queue,
-    //     CheckNRIResultFn = check_nri_result_fn,
-    // }
-    // imgui_impl_nri.Init(&imgui_init_info)
-    // imgui_impl_nri.CreateFontsTexture()
+	    // copy_imgui_data_desc : nri.CopyImguiDataDesc
+	    // im_interface.CmdCopyImguiData(nil, streamer, nri_imgui, &copy_imgui_data_desc)
+	
+	    
+	    // check_nri_result_fn :: proc(err: nri.Result) {
+	    //     fmt.printfln("Result: %v", err)
+	    // }
+	
+	    // imgui_init_info := imgui_impl_nri.InitInfo{
+	    //     Device           = device,
+	    //     Queue            = command_queue,
+	    //     CheckNRIResultFn = check_nri_result_fn,
+	    // }
+	    // imgui_impl_nri.Init(&imgui_init_info)
+	    // imgui_impl_nri.CreateFontsTexture()
+	}
 
 
     { // Pipeline layout
