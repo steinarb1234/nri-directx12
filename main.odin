@@ -251,41 +251,6 @@ main :: proc() {
 	        descriptorPoolSize = 1024
 	    }
 	    NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
-
-
-
-
-
-
-		// io.DisplaySize = im.Vec2{f32(window_width), f32(window_height)}
-		// io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
-		// when !DISABLE_DOCKING {
-		// 	io.ConfigFlags += {.DockingEnable}
-		// 	io.ConfigFlags += {.ViewportsEnable}
-	
-		// 	style := im.GetStyle()
-		// 	style.WindowRounding = 0
-		// 	style.Colors[im.Col.WindowBg].w =1
-		// }
-		// im.StyleColorsDark()
-	    
-	    
-
-	    // copy_imgui_data_desc : nri.CopyImguiDataDesc
-	    // im_interface.CmdCopyImguiData(nil, streamer, nri_imgui, &copy_imgui_data_desc)
-	
-	    
-	    // check_nri_result_fn :: proc(err: nri.Result) {
-	    //     fmt.printfln("Result: %v", err)
-	    // }
-	
-	    // imgui_init_info := imgui_impl_nri.InitInfo{
-	    //     Device           = device,
-	    //     Queue            = command_queue,
-	    //     CheckNRIResultFn = check_nri_result_fn,
-	    // }
-	    // imgui_impl_nri.Init(&imgui_init_info)
-	    // imgui_impl_nri.CreateFontsTexture()
 	}
 
 
@@ -340,17 +305,6 @@ main :: proc() {
                 }
             }
 		}
-
-
-        // Prepare frame...
-
-        // im.NewFrame()
-        // im.ShowDemoWindow()
-        // im.EndFrame()
-        // im.Render()
-   
-    
-        // Render frame...
         
         buffered_frame_index := frame_index % BUFFERED_FRAME_MAX_NUM
         frame := frames[buffered_frame_index]
@@ -401,15 +355,6 @@ main :: proc() {
                 // viewMask    = u32,              // if non-0, requires "viewMaxNum > 1"
             }
 
-            // im_draw_data := im.GetDrawData()
-            // copy_imgui_data_desc := nri.CopyImguiDataDesc{
-            //     drawLists = im_draw_data.CmdLists.Data,
-            //     drawListNum = u32(im_draw_data.CmdLists.Size),
-            //     // textures = nri_imgui.Textures.Data
-
-            // }
-            // im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &copy_imgui_data_desc)
-
             NRI.CmdBeginRendering(command_buffer, &attachments_desc)
             {
                 // ... annotation
@@ -427,22 +372,6 @@ main :: proc() {
                 rect1 := nri.Rect{0, 0, nri.Dim_t(window_width), nri.Dim_t(window_height)}
                 NRI.CmdClearAttachments(command_buffer, &clear_desc, 1, &rect1, 1)
             
-                // im_draw_data :^im.DrawData= im.GetDrawData()
-
-                // // drawLists   := transmute([^]^nri.ImDrawList) im_draw_data.CmdLists.Data
-                // drawLists   := im_draw_data.CmdLists.Data
-                // drawListNum := cast(u32) im_draw_data.CmdLists.Size
-                
-                // draw_imgui_desc := nri.DrawImguiDesc{
-                //     drawLists       = drawLists,
-                //     drawListNum     = drawListNum,
-                //     displaySize     = {u16(im_draw_data.DisplaySize.x), u16(im_draw_data.DisplaySize.y)},
-                //     hdrScale        = 1.0,
-                //     attachmentFormat= swapchain_texture.attachment_format,
-                //     linearColor     = true,
-                // }
-                // im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
-
 				{ // Imgui present
 					imgui_impl_sdl3.NewFrame()
 					im.NewFrame()
@@ -452,11 +381,15 @@ main :: proc() {
 					im.Render()
 		
 					draw_data := im.GetDrawData()
+                    draw_lists_im := draw_data.CmdLists.Data
+                    draw_lists_nri := cast(^^nri.ImDrawList)draw_lists_im
 					textures := im.GetPlatformIO().Textures
+                    texture_data_im := textures.Data
+                    texture_data_nri := cast(^^nri.ImTextureData)texture_data_im
 					copy := nri.CopyImguiDataDesc{
-		                drawLists   = draw_data.CmdLists.Data,
+		                drawLists   = draw_lists_nri,
 		                drawListNum = u32(draw_data.CmdLists.Size),
-						textures    = textures.Data,
+						textures    = texture_data_nri,
 						textureNum  = u32(textures.Size),
 					}
 					
@@ -464,18 +397,13 @@ main :: proc() {
 
 					draw_imgui_desc := nri.DrawImguiDesc{
 					    drawLists       = copy.drawLists,
-					    drawListNum     = copy.drawListsNum,
+					    drawListNum     = copy.drawListNum,
 					    displaySize     = {u16(draw_data.DisplaySize.x), u16(draw_data.DisplaySize.y)},
 					    hdrScale        = 1.0,
 					    attachmentFormat= swapchain_texture.attachment_format,
 					    linearColor     = true,
 					}
 					im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
-
-					// cmdlist->SetDescriptorHeaps(1, &g.srv_heap)
-					// io := im.GetIO()
-					// im.UpdatePlatformWindows()
-					// im.RenderPlatformWindowsDefault()
 				}
             
             }
