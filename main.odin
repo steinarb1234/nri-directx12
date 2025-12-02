@@ -4,19 +4,14 @@ import "core:fmt"
 import "core:sys/windows"
 import "core:os"
 import sdl "vendor:sdl3"
-import d3d12 "vendor:directx/d3d12"
 
 // Nvidia NRI
 import nri "libs/NRI-odin"
 
 // Imgui
 // DISABLE_DOCKING :: #config(DISABLE_DOCKING, false) // Allows moving imgui window out of the main window
-// import "libs/odin-imgui/imgui_impl_nri"
-// import    "libs/odin-imgui/imgui_impl_opengl3"
-// import    "libs/odin-imgui/imgui_impl_dx12"
 import im "libs/odin-imgui"
 import    "libs/odin-imgui/imgui_impl_sdl3"
-
 
 
 NRI_ABORT_ON_FAILURE :: proc(result: nri.Result, location := #caller_location) {
@@ -32,7 +27,6 @@ NRI_Interface :: struct {
     using swapchain: nri.SwapChainInterface,
     using helper   : nri.HelperInterface,
     using streamer : nri.StreamerInterface,
-	// using imgui    : nri.ImguiInterface, // Requires compiling NRI with imgui extension enabled
 }
 
 SwapChainTexture :: struct {
@@ -148,7 +142,6 @@ main :: proc() {
     NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriSwapChainInterface", size_of(NRI.swapchain), &NRI.swapchain))
     NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriHelperInterface", size_of(NRI.helper), &NRI.helper))
     NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriStreamerInterface", size_of(NRI.streamer), &NRI.streamer))
-    // NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NRIImguiInterface", size_of(NRI.imgui), &NRI.imgui))
 
 
     streamer_desc := nri.StreamerDesc{
@@ -392,22 +385,24 @@ main :: proc() {
 
             NRI.CmdBeginRendering(command_buffer, &attachments_desc)
             {
-                // ... annotation
+                { // Clear screen
+					NRI.CmdBeginAnnotation(command_buffer, "Clear screen", 0); defer(NRI.CmdEndAnnotation(command_buffer))
 
-                // Clear screen
-                clear_desc := nri.ClearDesc{
-                    value               = {
-                        color = {
-                            f = {1.0, 0.0, 0.0, 1.0}
-                        }
-                    },
-                    planes              = {.COLOR},
-                    colorAttachmentIndex= 0,
-                }
-                rect1 := nri.Rect{0, 0, nri.Dim_t(window_width), nri.Dim_t(window_height)}
-                NRI.CmdClearAttachments(command_buffer, &clear_desc, 1, &rect1, 1)
-            
+	                clear_desc := nri.ClearDesc{
+	                    value               = {
+	                        color = {
+	                            f = {1.0, 0.0, 0.0, 1.0}
+	                        }
+	                    },
+	                    planes              = {.COLOR},
+	                    colorAttachmentIndex= 0,
+	                }
+	                rect1 := nri.Rect{0, 0, nri.Dim_t(window_width), nri.Dim_t(window_height)}
+	                NRI.CmdClearAttachments(command_buffer, &clear_desc, 1, &rect1, 1)
+				}
+
 				{ // Imgui present
+					NRI.CmdBeginAnnotation(command_buffer, "Imgui present", 0); defer(NRI.CmdEndAnnotation(command_buffer))
 
 					draw_imgui_desc := nri.DrawImguiDesc{
 					    drawLists       = imgui_copy.drawLists,
