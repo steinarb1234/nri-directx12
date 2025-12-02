@@ -242,6 +242,14 @@ main :: proc() {
 		im.CreateContext()
 		// defer im.DestroyContext()
 		io := im.GetIO()
+
+        // io.BackendFlags += {.HasMouseCursors}
+        // io.BackendFlags += {.RendererHasVtxOffset}
+        io.BackendFlags += {.RendererHasTextures}
+
+        // im.FontAtlas_AddFontDefault(io.Fonts)
+
+        
 	    
 		imgui_impl_sdl3.InitForOther(window)
 
@@ -355,6 +363,33 @@ main :: proc() {
                 // viewMask    = u32,              // if non-0, requires "viewMaxNum > 1"
             }
 
+            imgui_copy : nri.CopyImguiDataDesc
+            imgui_draw_data : ^im.DrawData
+            { // Imgui prepare frame
+                imgui_impl_sdl3.NewFrame()
+                im.NewFrame()
+    
+                im.ShowDemoWindow()
+    
+                im.Render()
+    
+                imgui_draw_data = im.GetDrawData()
+                draw_lists_im := imgui_draw_data.CmdLists.Data
+                draw_lists_nri := cast(^^nri.ImDrawList)draw_lists_im
+                textures := im.GetPlatformIO().Textures
+                texture_data_im := textures.Data
+                texture_data_nri := cast(^^nri.ImTextureData)texture_data_im
+                imgui_copy = nri.CopyImguiDataDesc{
+                    drawLists   = draw_lists_nri,
+                    drawListNum = u32(imgui_draw_data.CmdLists.Size),
+                    textures    = texture_data_nri,
+                    textureNum  = u32(textures.Size),
+                }
+                
+                im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
+            }
+
+
             NRI.CmdBeginRendering(command_buffer, &attachments_desc)
             {
                 // ... annotation
@@ -373,32 +408,11 @@ main :: proc() {
                 NRI.CmdClearAttachments(command_buffer, &clear_desc, 1, &rect1, 1)
             
 				{ // Imgui present
-					imgui_impl_sdl3.NewFrame()
-					im.NewFrame()
-		
-					im.ShowDemoWindow()
-		
-					im.Render()
-		
-					draw_data := im.GetDrawData()
-                    draw_lists_im := draw_data.CmdLists.Data
-                    draw_lists_nri := cast(^^nri.ImDrawList)draw_lists_im
-					textures := im.GetPlatformIO().Textures
-                    texture_data_im := textures.Data
-                    texture_data_nri := cast(^^nri.ImTextureData)texture_data_im
-					copy := nri.CopyImguiDataDesc{
-		                drawLists   = draw_lists_nri,
-		                drawListNum = u32(draw_data.CmdLists.Size),
-						textures    = texture_data_nri,
-						textureNum  = u32(textures.Size),
-					}
-					
-					im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &copy)
 
 					draw_imgui_desc := nri.DrawImguiDesc{
-					    drawLists       = copy.drawLists,
-					    drawListNum     = copy.drawListNum,
-					    displaySize     = {u16(draw_data.DisplaySize.x), u16(draw_data.DisplaySize.y)},
+					    drawLists       = imgui_copy.drawLists,
+					    drawListNum     = imgui_copy.drawListNum,
+					    displaySize     = {u16(imgui_draw_data.DisplaySize.x), u16(imgui_draw_data.DisplaySize.y)},
 					    hdrScale        = 1.0,
 					    attachmentFormat= swapchain_texture.attachment_format,
 					    linearColor     = true,
