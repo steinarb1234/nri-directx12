@@ -11,11 +11,11 @@ import nri "libs/NRI-odin"
 
 // Imgui
 // DISABLE_DOCKING :: #config(DISABLE_DOCKING, false) // Allows moving imgui window out of the main window
-// import im "libs/odin-imgui"
 // import "libs/odin-imgui/imgui_impl_nri"
-// import    "libs/odin-imgui/imgui_impl_sdl3"
 // import    "libs/odin-imgui/imgui_impl_opengl3"
 // import    "libs/odin-imgui/imgui_impl_dx12"
+import im "libs/odin-imgui"
+import    "libs/odin-imgui/imgui_impl_sdl3"
 
 
 
@@ -235,12 +235,29 @@ main :: proc() {
     }
 
 
+	im_interface : nri.ImguiInterface
+	nri_imgui : ^nri.Imgui
     { // Init Imgui 
-		// im.CHECKVERSION()
-		// im.CreateContext()
+		im.CHECKVERSION()
+		im.CreateContext()
 		// defer im.DestroyContext()
-		// io := im.GetIO()
-	    // io.DisplaySize = im.Vec2{f32(window_width), f32(window_height)}
+		io := im.GetIO()
+	    
+		imgui_impl_sdl3.InitForOther(window)
+
+	    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
+
+	    imgui_desc := nri.ImguiDesc{
+	        descriptorPoolSize = 1024
+	    }
+	    NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
+
+
+
+
+
+
+		// io.DisplaySize = im.Vec2{f32(window_width), f32(window_height)}
 		// io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
 		// when !DISABLE_DOCKING {
 		// 	io.ConfigFlags += {.DockingEnable}
@@ -252,14 +269,7 @@ main :: proc() {
 		// }
 		// im.StyleColorsDark()
 	    
-	    // im_interface : nri.ImguiInterface
-	    // NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
 	    
-		// nri_imgui : ^nri.Imgui
-	    // imgui_desc := nri.ImguiDesc{
-	    //     descriptorPoolSize = 1024
-	    // }
-	    // NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
 
 	    // copy_imgui_data_desc : nri.CopyImguiDataDesc
 	    // im_interface.CmdCopyImguiData(nil, streamer, nri_imgui, &copy_imgui_data_desc)
@@ -315,17 +325,18 @@ main :: proc() {
     frame_index := 0
     game_loop: for {
         { // Handle keyboard and mouse input
-			event: sdl.Event
-			for sdl.PollEvent(&event) {				
-				#partial switch event.type {
+			e: sdl.Event
+			for sdl.PollEvent(&e) {
+				imgui_impl_sdl3.ProcessEvent(&e)
+				#partial switch e.type {
                     case .QUIT:
                         break game_loop
                         
-                        case .KEY_DOWN: // holding .KEY_DOWN has a delay then repeats downs, designed for text input
-                            #partial switch event.key.scancode {
-                            case .ESCAPE:
-                                break game_loop
-                        }
+					case .KEY_DOWN: // holding .KEY_DOWN has a delay then repeats downs, designed for writing text
+						#partial switch e.key.scancode {
+						case .ESCAPE:
+							break game_loop
+					}
                 }
             }
 		}
@@ -337,7 +348,7 @@ main :: proc() {
         // im.ShowDemoWindow()
         // im.EndFrame()
         // im.Render()
-    
+   
     
         // Render frame...
         
@@ -431,6 +442,41 @@ main :: proc() {
                 //     linearColor     = true,
                 // }
                 // im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
+
+				{ // Imgui present
+					imgui_impl_sdl3.NewFrame()
+					im.NewFrame()
+		
+					im.ShowDemoWindow()
+		
+					im.Render()
+		
+					draw_data := im.GetDrawData()
+					textures := im.GetPlatformIO().Textures
+					copy := nri.CopyImguiDataDesc{
+		                drawLists   = draw_data.CmdLists.Data,
+		                drawListNum = u32(draw_data.CmdLists.Size),
+						textures    = textures.Data,
+						textureNum  = u32(textures.Size),
+					}
+					
+					im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &copy)
+
+					draw_imgui_desc := nri.DrawImguiDesc{
+					    drawLists       = copy.drawLists,
+					    drawListNum     = copy.drawListsNum,
+					    displaySize     = {u16(draw_data.DisplaySize.x), u16(draw_data.DisplaySize.y)},
+					    hdrScale        = 1.0,
+					    attachmentFormat= swapchain_texture.attachment_format,
+					    linearColor     = true,
+					}
+					im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
+
+					// cmdlist->SetDescriptorHeaps(1, &g.srv_heap)
+					// io := im.GetIO()
+					// im.UpdatePlatformWindows()
+					// im.RenderPlatformWindowsDefault()
+				}
             
             }
             NRI.CmdEndRendering(command_buffer)
