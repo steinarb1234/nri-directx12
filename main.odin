@@ -74,15 +74,15 @@ ConstantBufferLayout :: struct {
 }
 
 Vertex :: struct{
-    position: [3]f32,
-    color:    [3]f32,
-    // uv:       [2]f32,
+    position: [2]f32,
+    // color:    [3]f32,
+    uv:       [2]f32,
 }
 
 triangle_vertices :: [3]Vertex{
-    {{0.0,   0.5, 0.0}, {1, 0, 0}},
-    {{0.5,  -0.5, 0.0}, {0, 1, 0}},
-    {{-0.5, -0.5, 0.0}, {0, 0, 1}},
+    {{0.0,   0.5}, {0.0, 0.0}},
+    {{0.5,  -0.5}, {1.0, 1.0}},
+    {{-0.5, -0.5}, {0.0, 1.0}},
 }
 
 Index :: u16
@@ -124,7 +124,7 @@ main :: proc() {
         // vkBindingOffsets                 = VKBindingOffsets,
         // vkExtensions                     = VKExtensions,
         enableNRIValidation              = true,
-        // enableGraphicsAPIValidation      = true, // Note: Enabled causes lag for window interactions
+        enableGraphicsAPIValidation      = true, // Note: Enabled causes lag for window interactions
         // enableD3D11CommandBufferEmulation= bool,
         // enableD3D12RayTracingValidation  = bool,
         // enableMemoryZeroInitialization   = bool,
@@ -148,11 +148,13 @@ main :: proc() {
         dynamicBufferMemoryLocation  = .HOST_UPLOAD,
         dynamicBufferDesc            = {
             size            = 0,
+            // size            = 4 * 1024 * 1024, // 4 MB for dynamic VB/IB
             structureStride = 0,
             usage           = {.VERTEX_BUFFER, .INDEX_BUFFER},
         },
-        // constantBufferSize           = u64,
         constantBufferMemoryLocation = .HOST_UPLOAD,
+        // constantBufferSize           = u64,
+        // constantBufferSize           = 1 * 1024 * 1024,
         queuedFrameNum               = queued_frame_num,
     }
     streamer : ^nri.Streamer
@@ -180,21 +182,19 @@ main :: proc() {
         textureNum    = 2, // frambuffers
         format        = .BT709_G22_8BIT,
         // flags         = SwapChainBits,
-        // queuedFrameNum= u8,
+        queuedFrameNum= queued_frame_num,
         scaling       = .STRETCH,
         // gravityX      = Gravity,
         // gravityY      = Gravity,
     }
     swapchain : ^nri.SwapChain
-    if NRI.CreateSwapChain(device, &nri_swapchain_desc, &swapchain) != .SUCCESS {
-        fmt.printfln("Failed to create nri swachain")
-        os.exit(-1)
-    }
+    NRI_ABORT_ON_FAILURE(NRI.CreateSwapChain(device, &nri_swapchain_desc, &swapchain))
 
+    swapchain_format : nri.Format
     { // Create swapchain textures
         swapchain_texture_num: u32
         nri_swapchain_textures := NRI.GetSwapChainTextures(swapchain, &swapchain_texture_num)
-        swapchain_format := NRI.GetTextureDesc(nri_swapchain_textures[0]).format
+        swapchain_format = NRI.GetTextureDesc(nri_swapchain_textures[0]).format
         for i:u32=0; i<swapchain_texture_num; i+=1 {
             texture_view_desc := nri.Texture2DViewDesc{nri_swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0}
 
@@ -254,7 +254,7 @@ main :: proc() {
 	    NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
 	}
 
-
+    pipeline_layout : ^nri.PipelineLayout
     { // Pipeline layout
         sampler_desc := nri.SamplerDesc{
             filters                = {
@@ -283,10 +283,140 @@ main :: proc() {
             size          = size_of(f32),
             shaderStages  = {.FRAGMENT_SHADER},
         }
-        rootSampler := nri.RootSamplerDesc{0, sampler_desc, {.FRAGMENT_SHADER}}
-        // setConstantBuffer := nri.DescriptorRangeDesc{0, 1, .CONSTANT_BUFFER,}
-        // setTexture := nri.DescriptorRangeDesc{0, 1, .TEXTURE, {.FRAGMENT_SHADER}, }
+        root_sampler := nri.RootSamplerDesc{0, sampler_desc, {.FRAGMENT_SHADER}}
+        STAGEBITS_ALL :: nri.StageBits{} // Missing in the nri-odin bindings
+        set_constant_buffer := nri.DescriptorRangeDesc{0, 1, .CONSTANT_BUFFER, STAGEBITS_ALL, nil}
+        set_texture := nri.DescriptorRangeDesc{0, 1, .TEXTURE, {.FRAGMENT_SHADER}, nil}
+
+        descriptor_set_descs := [?]nri.DescriptorSetDesc{
+            {0, &set_constant_buffer, 1, nil},
+            {1, &set_texture, 1, nil},
+        }
+
+        pipeline_layout_desc := nri.PipelineLayoutDesc{
+            rootRegisterSpace= 2, // see shader, must be unique
+            rootConstants    = &root_constant,
+            rootConstantNum  = 1,
+            // rootDescriptors  = [^]RootDescriptorDesc,
+            // rootDescriptorNum= u32,
+            rootSamplers     = &root_sampler,
+            rootSamplerNum   = 1,
+            descriptorSets   = raw_data(&descriptor_set_descs),
+            descriptorSetNum = 2,
+            shaderStages     = {.VERTEX_SHADER, .FRAGMENT_SHADER},
+            // flags            = PipelineLayoutBits,
+        }
+
+        NRI_ABORT_ON_FAILURE(NRI.CreatePipelineLayout(device, &pipeline_layout_desc, &pipeline_layout))
     }
+
+    Shader_Code_Storage :: []u8
+    pipeline : ^nri.Pipeline
+    // shader_code_storage
+    { // Pipeline
+        vertex_stream_desc := nri.VertexStreamDesc{
+            bindingSlot= 0,
+            // stepRate   = VertexStreamStepRate,
+        }
+        vertex_attribute_descs : []nri.VertexAttributeDesc = {
+            {
+                d3d        = {"POSITION", 0},
+                vk         = { location = 0 },
+                offset     = u32(offset_of(Vertex, position)),
+                format     = .RG32_SFLOAT,
+                streamIndex= 0,
+            },
+            {
+                d3d        = {"TEXCOORD", 0},
+                vk         = { location = 1 },
+                offset     = u32(offset_of(Vertex, uv)),
+                format     = .RG32_SFLOAT,
+                streamIndex= 0,
+            },
+        }
+
+        vertex_input_desc := nri.VertexInputDesc{
+            attributes  = raw_data(vertex_attribute_descs),
+            attributeNum= u8(len(vertex_attribute_descs)),
+            streams     = &vertex_stream_desc,
+            streamNum   = 1,
+        }
+
+        input_assembly_desc := nri.InputAssemblyDesc{
+	        topology           = .TRIANGLE_LIST,
+            // tessControlPointNum= u8,
+            // primitiveRestart   = PrimitiveRestart,
+        }
+
+        rasterization_desc := nri.RasterizationDesc{
+            // depthBias            = DepthBiasDesc,
+            fillMode             = .SOLID,
+            cullMode             = .NONE,
+            // frontCounterClockwise= bool,
+            // depthClamp           = bool,
+            // lineSmoothing        = bool,            // requires "features.lineSmoothing"
+            // conservativeRaster   = bool,            // requires "tiers.conservativeRaster != 0"
+            // shadingRate          = bool,            // requires "tiers.shadingRate != 0", expects "CmdSetShadingRate" and optionally "AttachmentsDesc::shadingRate"
+        }
+
+        color_attachment_desc := nri.ColorAttachmentDesc{
+            format        = swapchain_format,
+            colorBlend    = {
+                srcFactor= .SRC_ALPHA,
+                dstFactor= .ONE_MINUS_SRC_ALPHA,
+                op       = .ADD,
+            },
+            // alphaBlend    = BlendDesc,
+            colorWriteMask= .RGBA,
+            blendEnabled  = true,
+        }
+
+        output_merger_desc := nri.OutputMergerDesc{
+            colors            = &color_attachment_desc,
+            colorNum          = 1,
+            // depth             = DepthAttachmentDesc,
+            // stencil           = StencilAttachmentDesc,
+            // depthStencilFormat= Format,
+            // logicOp           = LogicOp,                  // requires "features.logicOp"
+            // viewMask          = u32,                      // if non-0, requires "viewMaxNum > 1"
+	        // multiview         = Multiview,                // if "viewMask != 0", requires "features.(xxx)Multiview"
+        }
+
+        shader_code_storage : [dynamic]u8
+        shader_stages := []nri.ShaderDesc{
+            //............todo 
+            load_shader(graphics_api, "TriangleFlexibleMultiview.vs", shader_code_storage),
+            load_shader(graphics_api, "Triangle.fs", shader_code_storage),
+        }
+
+        graphics_pipeline_desc := nri.GraphicsPipelineDesc{
+            pipelineLayout= pipeline_layout,
+            vertexInput   = &vertex_input_desc,
+            inputAssembly = input_assembly_desc,
+            rasterization = rasterization_desc,
+            // multisample   = ^MultisampleDesc,
+            outputMerger  = output_merger_desc,
+            shaders       = raw_data(shader_stages),
+            shaderNum     = u32(len(shader_stages)),
+            // robustness    = Robustness,
+        }
+
+        NRI_ABORT_ON_FAILURE(NRI.CreateGraphicsPipeline(device, &graphics_pipeline_desc, &pipeline))
+
+    }
+
+    descriptor_pool : ^nri.DescriptorPool
+    { // Descriptor pool
+        descriptor_pool_desc := nri.DescriptorPoolDesc{
+            descriptorSetMaxNum = queued_frame_num + 1,
+            constantBufferMaxNum = queued_frame_num,
+            textureMaxNum = 1,
+        }
+
+        NRI_ABORT_ON_FAILURE(NRI.CreateDescriptorPool(device, &descriptor_pool_desc, &descriptor_pool))
+    }
+
+
 
     frame_index := 0
     game_loop: for {
@@ -379,7 +509,9 @@ main :: proc() {
                     drawLists   = cast(^^nri.ImDrawList)imgui_draw_data.CmdLists.Data,
                     drawListNum = u32(imgui_draw_data.CmdLists.Size),
                     textures    = cast(^^nri.ImTextureData)textures.Data,
+                    // textures    = nil,
                     textureNum  = u32(textures.Size),
+                    // textureNum  = 0,
                 }
                 im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
             }

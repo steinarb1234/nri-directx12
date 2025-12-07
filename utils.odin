@@ -60,3 +60,50 @@ nri_abort_callback :: proc "c"(user_data: rawptr) {
 
     os.exit(-1)
 }
+
+load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, shader_code_storage: [dynamic]u8) -> nri.ShaderDesc {
+    Shader :: struct {
+        extension: cstring,
+        stage    : nri.StageBits,
+    }
+    
+    GetShaderExt :: #force_inline proc(graphicsAPI: nri.GraphicsAPI) -> cstring {
+        if (graphicsAPI == .D3D11) {
+            return ".dxbc";
+        }
+        else if (graphicsAPI == .D3D12) {
+            return ".dxil";
+        }
+        return ".spirv";
+    }
+    
+    shader_extensions :: [?]Shader{
+        {"",        nri.STAGEBITS_NONE},
+        {".vs.",    {.VERTEX_SHADER}},
+        {".tcs.",   {.TESS_CONTROL_SHADER}},
+        {".tes.",   {.TESS_EVALUATION_SHADER}},
+        {".gs.",    {.GEOMETRY_SHADER}},
+        {".fs.",    {.FRAGMENT_SHADER}},
+        {".cs.",    {.COMPUTE_SHADER}},
+        {".rgen.",  {.RAYGEN_SHADER}},
+        {".rmiss.", {.MISS_SHADER}},
+        {"<noimpl>",{.INTERSECTION_SHADER}},
+        {".rchit.", {.CLOSEST_HIT_SHADER}},
+        {".rahit.", {.ANY_HIT_SHADER}},
+        {"<noimpl>",{.CALLABLE_SHADER}},
+    }
+
+
+    shader_desc : nri.ShaderDesc = {
+        stage         = StageBits,
+        bytecode      = rawptr,
+        size          = u64,
+        entryPointName= cstring,
+    }
+
+    return shader_desc
+}
+
+
+
+
