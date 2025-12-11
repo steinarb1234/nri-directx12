@@ -382,11 +382,11 @@ main :: proc() {
 	        // multiview         = Multiview,                // if "viewMask != 0", requires "features.(xxx)Multiview"
         }
 
-        shader_code_storage : [dynamic][dynamic]u8
+        shader_code_storage := make([dynamic][]u8, 2)
         shader_stages := []nri.ShaderDesc{
             //............todo 
-            load_shader(graphics_api, "TriangleFlexibleMultiview.vs", shader_code_storage),
-            load_shader(graphics_api, "Triangle.fs", shader_code_storage),
+            load_shader(graphics_api, "Triangle.vs.hlsl", &shader_code_storage),
+            load_shader(graphics_api, "Triangle.fs.hlsl", &shader_code_storage),
         }
 
         graphics_pipeline_desc := nri.GraphicsPipelineDesc{
@@ -425,9 +425,9 @@ main :: proc() {
 			queued_frame_index := frame_index % queued_frame_num
 			wait_value := frame_index >= queued_frame_num ? 1 + frame_index - queued_frame_num : 0
 
-			NRI.Wait(frame_fence, wait_value)
+			NRI.Wait(frame_fence, u64(wait_value))
 
-			NRI.ResetCommandAllocator(frames[buffered_framne_index].command_allocator^)
+			NRI.ResetCommandAllocator(frames[queued_frame_index].command_allocator)
 		}
 
         { // Handle keyboard and mouse input
@@ -598,13 +598,6 @@ main :: proc() {
 
         // Present
         NRI.QueuePresent(swapchain, swapchain_texture.release_semaphore)
-
-
-        // if frame_index >= BUFFERED_FRAME_MAX_NUM {
-        //     NRI.Wait(frame_fence, 1 + frame_index - BUFFERED_FRAME_MAX_NUM)
-        //     NRI.ResetCommandAllocator(frames[buffered_framne_index].command_allocator^)
-        // }
-
 
         frame_index += 1
 

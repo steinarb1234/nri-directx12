@@ -1,5 +1,6 @@
-package main
+#+feature dynamic-literals
 
+package main
 import "core:os"
 import d3d12 "vendor:directx/d3d12"
 import "core:fmt"
@@ -7,6 +8,7 @@ import     "base:runtime"
 import sdl "vendor:sdl3"
 import     "core:log"
 import nri "libs/NRI-odin"
+import "core:path/filepath"
 
 
 check :: proc(res: d3d12.HRESULT, message: string) {
@@ -61,7 +63,7 @@ nri_abort_callback :: proc "c"(user_data: rawptr) {
     os.exit(-1)
 }
 
-load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage: [dynamic]u8) -> nri.ShaderDesc {
+load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage: ^[dynamic][]u8) -> nri.ShaderDesc {
     Shader :: struct {
         extension: cstring,
         stage    : nri.StageBits,
@@ -78,37 +80,42 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
     }
     
     // shader_extensions :: [?]Shader{
-	shader_extension :: map[string]nri.StageBits
+    
+	shader_extension := map[string]nri.StageBits {
         // {"",        nri.STAGEBITS_NONE},
-        {".vs.",    {.VERTEX_SHADER}},
-        {".tcs.",   {.TESS_CONTROL_SHADER}},
-        {".tes.",   {.TESS_EVALUATION_SHADER}},
-        {".gs.",    {.GEOMETRY_SHADER}},
-        {".fs.",    {.FRAGMENT_SHADER}},
-        {".cs.",    {.COMPUTE_SHADER}},
-        {".rgen.",  {.RAYGEN_SHADER}},
-        {".rmiss.", {.MISS_SHADER}},
-        {"<noimpl>",{.INTERSECTION_SHADER}},
-        {".rchit.", {.CLOSEST_HIT_SHADER}},
-        {".rahit.", {.ANY_HIT_SHADER}},
-        {"<noimpl>",{.CALLABLE_SHADER}},
+        ".vs."     = {.VERTEX_SHADER},
+        ".tcs."    = {.TESS_EVALUATION_SHADER},
+        ".tes."    = {.TESS_EVALUATION_SHADER},
+        ".gs."     = {.GEOMETRY_SHADER},
+        ".fs."     = {.FRAGMENT_SHADER},
+        ".cs."     = {.COMPUTE_SHADER},
+        ".rgen."   = {.RAYGEN_SHADER},
+        ".rmiss."  = {.MISS_SHADER},
+        "<noimpl>" = {.INTERSECTION_SHADER},
+        ".rchit."  = {.CLOSEST_HIT_SHADER},
+        ".rahit."  = {.ANY_HIT_SHADER},
+        "<noimpl>" = {.CALLABLE_SHADER},
     }
 
-	shader_file_extension := filepath.ext(shader_name)
+	shader_file_long_extension := filepath.long_ext(shader_name) // e.g. triangle_shader.vs.hlsl -> .vs.hlsl
+	shader_file_extension := filepath.stem(shader_file_long_extension) // e.g. .vs.hlsl -> .vs.
+
+
 	shader_stage := shader_extension[shader_file_extension]
 
-	code, err := read_enitre_file(shader_name, context.allocator)
+	code, ok := os.read_entire_file(shader_name, context.allocator)
 
-	if err {
-	    // Todo
+	if !ok {
+        fmt.eprintfln("Failed to load shader: %s", shader_name)
+        os.exit(-1)
 	}
 
-	storage[0] = code
+	storage[0] = code //  Todo: index is wrong if multiple shaders are loaded
 
     shader_desc : nri.ShaderDesc = {
         stage         = shader_stage,
         bytecode      = rawptr(&code[0]),
-        size          = len(code),
+        size          = u64(len(code)),
         entryPointName= "test",
     }
 
