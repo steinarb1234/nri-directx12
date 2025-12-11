@@ -382,7 +382,7 @@ main :: proc() {
 	        // multiview         = Multiview,                // if "viewMask != 0", requires "features.(xxx)Multiview"
         }
 
-        shader_code_storage : [dynamic]u8
+        shader_code_storage : [dynamic][dynamic]u8
         shader_stages := []nri.ShaderDesc{
             //............todo 
             load_shader(graphics_api, "TriangleFlexibleMultiview.vs", shader_code_storage),
