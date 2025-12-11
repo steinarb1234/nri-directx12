@@ -61,13 +61,13 @@ nri_abort_callback :: proc "c"(user_data: rawptr) {
     os.exit(-1)
 }
 
-load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, shader_code_storage: [dynamic]u8) -> nri.ShaderDesc {
+load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage: [dynamic]u8) -> nri.ShaderDesc {
     Shader :: struct {
         extension: cstring,
         stage    : nri.StageBits,
     }
     
-    GetShaderExt :: #force_inline proc(graphicsAPI: nri.GraphicsAPI) -> cstring {
+    get_shader_extension :: #force_inline proc(graphicsAPI: nri.GraphicsAPI) -> cstring {
         if (graphicsAPI == .D3D11) {
             return ".dxbc";
         }
@@ -77,8 +77,9 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, shader_c
         return ".spirv";
     }
     
-    shader_extensions :: [?]Shader{
-        {"",        nri.STAGEBITS_NONE},
+    // shader_extensions :: [?]Shader{
+	shader_extension :: map[string]nri.StageBits
+        // {"",        nri.STAGEBITS_NONE},
         {".vs.",    {.VERTEX_SHADER}},
         {".tcs.",   {.TESS_CONTROL_SHADER}},
         {".tes.",   {.TESS_EVALUATION_SHADER}},
@@ -93,12 +94,22 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, shader_c
         {"<noimpl>",{.CALLABLE_SHADER}},
     }
 
+	shader_file_extension := filepath.ext(shader_name)
+	shader_stage := shader_extension[shader_file_extension]
+
+	code, err := read_enitre_file(shader_name, context.allocator)
+
+	if err {
+	    // Todo
+	}
+
+	storage[0] = code
 
     shader_desc : nri.ShaderDesc = {
-        stage         = StageBits,
-        bytecode      = rawptr,
-        size          = u64,
-        entryPointName= cstring,
+        stage         = shader_stage,
+        bytecode      = rawptr(&code[0]),
+        size          = len(code),
+        entryPointName= "test",
     }
 
     return shader_desc
