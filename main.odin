@@ -420,6 +420,16 @@ main :: proc() {
 
     frame_index := 0
     game_loop: for {
+
+		{ // Latency sleep
+			queued_frame_index := frame_index % queued_frame_num
+			wait_value := frame_index >= queued_frame_num ? 1 + frame_index - queued_frame_num : 0
+
+			NRI.Wait(frame_fence, wait_value)
+
+			NRI.ResetCommandAllocator(frames[buffered_framne_index].command_allocator^)
+		}
+
         { // Handle keyboard and mouse input
 			e: sdl.Event
 			for sdl.PollEvent(&e) {
