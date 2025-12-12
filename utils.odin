@@ -80,8 +80,8 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
     }
     
     // shader_extensions :: [?]Shader{
-    
-	shader_extension := map[string]nri.StageBits {
+
+	@(static) shader_stage_bits := map[string]nri.StageBits {
         // {"",        nri.STAGEBITS_NONE},
         ".vs."     = {.VERTEX_SHADER},
         ".tcs."    = {.TESS_EVALUATION_SHADER},
@@ -97,11 +97,10 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         "<noimpl>" = {.CALLABLE_SHADER},
     }
 
-	shader_file_long_extension := filepath.long_ext(shader_name) // e.g. triangle_shader.vs.hlsl -> .vs.hlsl
-	shader_file_extension := filepath.stem(shader_file_long_extension) // e.g. .vs.hlsl -> .vs.
+	shader_file_long_extension := filepath.long_ext(shader_name) // e.g. triangle_shader.vs.dxil -> .vs.dxil
+	shader_file_extension := filepath.stem(shader_file_long_extension) // e.g. .vs.dxil -> .vs.
 
-
-	shader_stage := shader_extension[shader_file_extension]
+	shader_stage := shader_stage_bits[shader_file_extension]
 
 	code, ok := os.read_entire_file(shader_name, context.allocator)
 
