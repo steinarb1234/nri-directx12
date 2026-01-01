@@ -81,7 +81,8 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
     
     // shader_extensions :: [?]Shader{
 
-	@(static) shader_stage_bits := map[string]nri.StageBits {
+	// @(static) 
+    shader_stage_bits := map[string]nri.StageBits {
         // {"",        nri.STAGEBITS_NONE},
         ".vs."     = {.VERTEX_SHADER},
         ".tcs."    = {.TESS_EVALUATION_SHADER},

@@ -310,7 +310,6 @@ main :: proc() {
         NRI_ABORT_ON_FAILURE(NRI.CreatePipelineLayout(device, &pipeline_layout_desc, &pipeline_layout))
     }
 
-    Shader_Code_Storage :: []u8
     pipeline : ^nri.Pipeline
     // shader_code_storage
     { // Pipeline
@@ -385,8 +384,8 @@ main :: proc() {
         shader_code_storage := make([dynamic][]u8, 2)
         shader_stages := []nri.ShaderDesc{
             //............todo 
-            load_shader(graphics_api, "Triangle.vs.hlsl", &shader_code_storage),
-            load_shader(graphics_api, "Triangle.fs.hlsl", &shader_code_storage),
+            load_shader(graphics_api, "Triangle.vs", &shader_code_storage),
+            load_shader(graphics_api, "Triangle.fs", &shader_code_storage),
         }
 
         graphics_pipeline_desc := nri.GraphicsPipelineDesc{
