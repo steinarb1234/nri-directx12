@@ -2,6 +2,7 @@
 
 package main
 import "core:os"
+import "core:strings"
 import d3d12 "vendor:directx/d3d12"
 import "core:fmt"
 import     "base:runtime"
@@ -69,7 +70,7 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         stage    : nri.StageBits,
     }
     
-    get_shader_extension :: #force_inline proc(graphicsAPI: nri.GraphicsAPI) -> cstring {
+    get_shader_extension :: #force_inline proc(graphicsAPI: nri.GraphicsAPI) -> string {
         if (graphicsAPI == .D3D11) {
             return ".dxbc";
         }
@@ -78,8 +79,6 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         }
         return ".spirv";
     }
-    
-    // shader_extensions :: [?]Shader{
 
 	// @(static) 
     shader_stage_bits := map[string]nri.StageBits {
@@ -98,25 +97,24 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         "<noimpl>" = {.CALLABLE_SHADER},
     }
 
-	shader_file_long_extension := filepath.long_ext(shader_name) // e.g. triangle_shader.vs.dxil -> .vs.dxil
-	shader_file_extension := filepath.stem(shader_file_long_extension) // e.g. .vs.dxil -> .vs.
+    shader_stage_filename := filepath.ext(shader_name) // e.g. "Triangle.vs" -> ".vs"
+	shader_stage := shader_stage_bits[shader_stage_filename]
 
-	shader_stage := shader_stage_bits[shader_file_extension]
+    SHADER_FOLDER :: "shaders/dxil/"
+    shader_filename := strings.concatenate({SHADER_FOLDER, shader_name, get_shader_extension(graphics_api)})
 
-	code, ok := os.read_entire_file(shader_name, context.allocator)
+	code, ok := os.read_entire_file(shader_filename, context.allocator)
 
 	if !ok {
-        fmt.eprintfln("Failed to load shader: %s", shader_name)
+        fmt.eprintfln("Failed to load shader: %s", shader_filename)
         os.exit(-1)
 	}
 
-	storage[0] = code //  Todo: index is wrong if multiple shaders are loaded
-
     shader_desc : nri.ShaderDesc = {
         stage         = shader_stage,
-        bytecode      = rawptr(&code[0]),
+        bytecode      = rawptr(&code),
         size          = u64(len(code)),
-        entryPointName= "test",
+        entryPointName= "main",
     }
 
     return shader_desc

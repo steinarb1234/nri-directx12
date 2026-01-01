@@ -65,9 +65,6 @@ window_width  : i32 = 1024
 
 device : ^nri.Device
 
-SHADER_FILE :: "shaders.hlsl"
-shaders_hlsl := #load(SHADER_FILE)
-
 ConstantBufferLayout :: struct {
     color: [3]f32,
     scale: f32,
