@@ -114,7 +114,8 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         stage         = shader_stage,
         bytecode      = rawptr(&code),
         size          = u64(len(code)),
-        entryPointName= "main",
+        // entryPointName= "main",
+        entryPointName= nil,
     }
 
     return shader_desc
