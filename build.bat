@@ -1,16 +1,15 @@
 @echo off
 setlocal
 
-echo Precompiling shaders...
-@REM cso files contain dxil bytecode for DirectX 12
+echo Compiling shaders...
 
-dxc -T vs_6_6 -E main -Fo shaders/dxil/Triangle.vs.dxil -Zi -Qembed_debug shaders/Triangle.vs.hlsl
+dxc -T vs_6_6 -E main -Fo shaders/Triangle.vs.dxil -Zi -Qembed_debug shaders/Triangle.vs.hlsl
 if %errorlevel% neq 0 (
     echo Vertex shader compilation failed!
     exit /b %errorlevel%
 )
 
-dxc -T ps_6_6 -E main -Fo shaders/dxil/Triangle.fs.dxil -Zi -Qembed_debug shaders/Triangle.fs.hlsl
+dxc -T ps_6_6 -E main -Fo shaders/Triangle.fs.dxil -Zi -Qembed_debug shaders/Triangle.fs.hlsl
 if %errorlevel% neq 0 (
     echo Pixel shader compilation failed!
     exit /b %errorlevel%

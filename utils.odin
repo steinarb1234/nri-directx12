@@ -1,25 +1,16 @@
 #+feature dynamic-literals
 
 package main
-import "core:os"
-import "core:strings"
-import d3d12 "vendor:directx/d3d12"
-import "core:fmt"
+
+import     "core:os"
+import     "core:strings"
+import     "core:fmt"
 import     "base:runtime"
 import sdl "vendor:sdl3"
 import     "core:log"
 import nri "libs/NRI-odin"
-import "core:path/filepath"
+import     "core:path/filepath"
 
-
-check :: proc(res: d3d12.HRESULT, message: string) {
-    if (res >= 0) {
-        return
-    }
-
-    fmt.printf("%v. Error code: %0x\n", message, u32(res))
-    os.exit(-1)
-}
 
 sdl_log :: proc "c" (userdata: rawptr, category: sdl.LogCategory, priority: sdl.LogPriority, message: cstring) {
 	context = (transmute(^runtime.Context)userdata)^
@@ -65,47 +56,41 @@ nri_abort_callback :: proc "c"(user_data: rawptr) {
 }
 
 load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage: ^[dynamic][]u8) -> nri.ShaderDesc {
-    Shader :: struct {
-        extension: cstring,
-        stage    : nri.StageBits,
-    }
-    
     get_shader_extension :: #force_inline proc(graphicsAPI: nri.GraphicsAPI) -> string {
-        if (graphicsAPI == .D3D11) {
-            return ".dxbc";
+        #partial switch graphicsAPI {
+            case .D3D12: return ".dxil"
+            // case .D3D11: return ".dxbc"
+            // case .VK:    return ".spirv"
+            case:
+                fmt.eprintfln("Unsupported Graphics API for shader loading: %s", graphicsAPI)
+                os.exit(-1)
         }
-        else if (graphicsAPI == .D3D12) {
-            return ".dxil";
-        }
-        return ".spirv";
     }
 
-	// @(static) 
-    shader_stage_bits := map[string]nri.StageBits {
-        // {"",        nri.STAGEBITS_NONE},
-        ".vs"     = {.VERTEX_SHADER},
-        ".tcs"    = {.TESS_EVALUATION_SHADER},
-        ".tes"    = {.TESS_EVALUATION_SHADER},
-        ".gs"     = {.GEOMETRY_SHADER},
-        ".fs"     = {.FRAGMENT_SHADER},
-        ".cs"     = {.COMPUTE_SHADER},
-        ".rgen"   = {.RAYGEN_SHADER},
-        ".rmiss"  = {.MISS_SHADER},
-        "<noimpl>" = {.INTERSECTION_SHADER},
-        ".rchit"  = {.CLOSEST_HIT_SHADER},
-        ".rahit"  = {.ANY_HIT_SHADER},
-        "<noimpl>" = {.CALLABLE_SHADER},
-    }
 
-    shader_stage_filename := filepath.ext(shader_name) // e.g. "Triangle.vs" -> ".vs"
-	shader_stage, map_ok := shader_stage_bits[shader_stage_filename]
-    if !map_ok {
-        fmt.eprintfln("Failed to determine shader stage for shader: %s", shader_name)
-        os.exit(-1)
+
+    shader_stage_filename := filepath.ext(shader_name) // f.x. "Triangle.vs" -> ".vs"
+    shader_stage : nri.StageBits
+    switch shader_stage_filename {
+        case ".vs"   : shader_stage = {.VERTEX_SHADER}
+        case ".tcs"  : shader_stage = {.TESS_CONTROL_SHADER}
+        case ".tes"  : shader_stage = {.TESS_EVALUATION_SHADER}
+        case ".gs"   : shader_stage = {.GEOMETRY_SHADER}
+        case ".fs"   : shader_stage = {.FRAGMENT_SHADER}
+        case ".cs"   : shader_stage = {.COMPUTE_SHADER}
+        case ".rgen" : shader_stage = {.RAYGEN_SHADER}
+        case ".rmiss": shader_stage = {.MISS_SHADER}
+        // case "<noimpl>": shader_stage = {.INTERSECTION_SHADER}
+        case ".rchit": shader_stage = {.CLOSEST_HIT_SHADER}
+        case ".ahit" : shader_stage = {.ANY_HIT_SHADER}
+        // case "<noimpl>": shader_stage = {.CALLABLE_SHADER}
+        case:
+            fmt.eprintfln("Failed to determine shader stage for shader: %s", shader_name)
+            os.exit(-1)
     }
     fmt.printfln("Loading shader: %s, stage: %s", shader_name, shader_stage)
 
-    SHADER_FOLDER :: "shaders/dxil/"
+    SHADER_FOLDER :: "shaders/"
     shader_filename := strings.concatenate({SHADER_FOLDER, shader_name, get_shader_extension(graphics_api)})
 
 	code, ok := os.read_entire_file(shader_filename, context.allocator)
