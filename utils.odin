@@ -83,22 +83,26 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
 	// @(static) 
     shader_stage_bits := map[string]nri.StageBits {
         // {"",        nri.STAGEBITS_NONE},
-        ".vs."     = {.VERTEX_SHADER},
-        ".tcs."    = {.TESS_EVALUATION_SHADER},
-        ".tes."    = {.TESS_EVALUATION_SHADER},
-        ".gs."     = {.GEOMETRY_SHADER},
-        ".fs."     = {.FRAGMENT_SHADER},
-        ".cs."     = {.COMPUTE_SHADER},
-        ".rgen."   = {.RAYGEN_SHADER},
-        ".rmiss."  = {.MISS_SHADER},
+        ".vs"     = {.VERTEX_SHADER},
+        ".tcs"    = {.TESS_EVALUATION_SHADER},
+        ".tes"    = {.TESS_EVALUATION_SHADER},
+        ".gs"     = {.GEOMETRY_SHADER},
+        ".fs"     = {.FRAGMENT_SHADER},
+        ".cs"     = {.COMPUTE_SHADER},
+        ".rgen"   = {.RAYGEN_SHADER},
+        ".rmiss"  = {.MISS_SHADER},
         "<noimpl>" = {.INTERSECTION_SHADER},
-        ".rchit."  = {.CLOSEST_HIT_SHADER},
-        ".rahit."  = {.ANY_HIT_SHADER},
+        ".rchit"  = {.CLOSEST_HIT_SHADER},
+        ".rahit"  = {.ANY_HIT_SHADER},
         "<noimpl>" = {.CALLABLE_SHADER},
     }
 
     shader_stage_filename := filepath.ext(shader_name) // e.g. "Triangle.vs" -> ".vs"
-	shader_stage := shader_stage_bits[shader_stage_filename]
+	shader_stage, map_ok := shader_stage_bits[shader_stage_filename]
+    if !map_ok {
+        fmt.eprintfln("Failed to determine shader stage for shader: %s", shader_name)
+        os.exit(-1)
+    }
 
     SHADER_FOLDER :: "shaders/dxil/"
     shader_filename := strings.concatenate({SHADER_FOLDER, shader_name, get_shader_extension(graphics_api)})

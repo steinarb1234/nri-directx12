@@ -397,10 +397,7 @@ main :: proc() {
             // robustness    = Robustness,
         }
 
-        
-
         NRI_ABORT_ON_FAILURE(NRI.CreateGraphicsPipeline(device, &graphics_pipeline_desc, &pipeline))
-
     }
 
     descriptor_pool : ^nri.DescriptorPool
