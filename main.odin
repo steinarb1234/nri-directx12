@@ -281,13 +281,14 @@ main :: proc() {
             shaderStages  = {.FRAGMENT_SHADER},
         }
         root_sampler := nri.RootSamplerDesc{0, sampler_desc, {.FRAGMENT_SHADER}}
-        STAGEBITS_ALL :: nri.StageBits{} // Missing in the nri-odin bindings
-        set_constant_buffer := nri.DescriptorRangeDesc{0, 1, .CONSTANT_BUFFER, STAGEBITS_ALL, nil}
-        set_texture := nri.DescriptorRangeDesc{0, 1, .TEXTURE, {.FRAGMENT_SHADER}, nil}
+        // STAGEBITS_ALL :: nri.StageBits{} // Missing in the nri-odin bindings
+        // STAGEBITS_ALL :: nri.StageBits{} // Missing in the nri-odin bindings
+        set_constant_buffer := nri.DescriptorRangeDesc{0, 1, .CONSTANT_BUFFER, nri.STAGEBITS_ALL, {}}
+        set_texture := nri.DescriptorRangeDesc{0, 1, .TEXTURE, {.FRAGMENT_SHADER}, {}}
 
         descriptor_set_descs := [?]nri.DescriptorSetDesc{
-            {0, &set_constant_buffer, 1, nil},
-            {1, &set_texture, 1, nil},
+            {0, &set_constant_buffer, 1, {}},
+            {1, &set_texture, 1, {}},
         }
 
         pipeline_layout_desc := nri.PipelineLayoutDesc{
@@ -432,7 +433,7 @@ main :: proc() {
         { // Handle keyboard and mouse input
 			e: sdl.Event
 			for sdl.PollEvent(&e) {
-				imgui_impl_sdl3.ProcessEvent(&e)
+				// imgui_impl_sdl3.ProcessEvent(&e)
 				#partial switch e.type {
                     case .QUIT:
                         break game_loop
@@ -495,35 +496,35 @@ main :: proc() {
                 // viewMask    = u32,              // if non-0, requires "viewMaxNum > 1"
             }
 
-            imgui_copy : nri.CopyImguiDataDesc
-            imgui_draw_data : ^im.DrawData
-            { // Imgui prepare frame
-                imgui_impl_sdl3.NewFrame()
-                im.NewFrame()
-                {
-                    im.ShowDemoWindow()
+            // imgui_copy : nri.CopyImguiDataDesc
+            // imgui_draw_data : ^im.DrawData
+            // { // Imgui prepare frame
+            //     imgui_impl_sdl3.NewFrame()
+            //     im.NewFrame()
+            //     {
+            //         im.ShowDemoWindow()
 
-                    // im.Begin("Debug window")
-                    //     im.Text("frame: %i", frame_index)
-                    //     // im.Text("FPS: %.1f", fps)
-                    // im.End()
+            //         // im.Begin("Debug window")
+            //         //     im.Text("frame: %i", frame_index)
+            //         //     // im.Text("FPS: %.1f", fps)
+            //         // im.End()
 
-                }
-                im.EndFrame()
-                im.Render()
+            //     }
+            //     im.EndFrame()
+            //     im.Render()
     
-                imgui_draw_data = im.GetDrawData()
-                textures := im.GetPlatformIO().Textures
-                imgui_copy = nri.CopyImguiDataDesc{
-                    drawLists   = cast(^^nri.ImDrawList)imgui_draw_data.CmdLists.Data,
-                    drawListNum = u32(imgui_draw_data.CmdLists.Size),
-                    textures    = cast(^^nri.ImTextureData)textures.Data,
-                    // textures    = nil,
-                    textureNum  = u32(textures.Size),
-                    // textureNum  = 0,
-                }
-                // im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
-            }
+            //     imgui_draw_data = im.GetDrawData()
+            //     textures := im.GetPlatformIO().Textures
+            //     imgui_copy = nri.CopyImguiDataDesc{
+            //         drawLists   = cast(^^nri.ImDrawList)imgui_draw_data.CmdLists.Data,
+            //         drawListNum = u32(imgui_draw_data.CmdLists.Size),
+            //         textures    = cast(^^nri.ImTextureData)textures.Data,
+            //         // textures    = nil,
+            //         textureNum  = u32(textures.Size),
+            //         // textureNum  = 0,
+            //     }
+            //     // im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
+            // }
 
 
             NRI.CmdBeginRendering(command_buffer, &attachments_desc)
@@ -544,20 +545,20 @@ main :: proc() {
 	                NRI.CmdClearAttachments(command_buffer, &clear_desc, 1, &rect1, 1)
 				}
 
-				{ // Imgui present
-					NRI.CmdBeginAnnotation(command_buffer, "Imgui present", 0); defer(NRI.CmdEndAnnotation(command_buffer))
+				// { // Imgui present
+				// 	NRI.CmdBeginAnnotation(command_buffer, "Imgui present", 0); defer(NRI.CmdEndAnnotation(command_buffer))
 
-					draw_imgui_desc := nri.DrawImguiDesc{
-					    drawLists       = imgui_copy.drawLists,
-					    drawListNum     = imgui_copy.drawListNum,
-					    displaySize     = {u16(imgui_draw_data.DisplaySize.x), u16(imgui_draw_data.DisplaySize.y)},
-					    hdrScale        = 1.0,
-					    attachmentFormat= swapchain_texture.attachment_format,
-					    linearColor     = true,
-					}
-					// im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
+				// 	draw_imgui_desc := nri.DrawImguiDesc{
+				// 	    drawLists       = imgui_copy.drawLists,
+				// 	    drawListNum     = imgui_copy.drawListNum,
+				// 	    displaySize     = {u16(imgui_draw_data.DisplaySize.x), u16(imgui_draw_data.DisplaySize.y)},
+				// 	    hdrScale        = 1.0,
+				// 	    attachmentFormat= swapchain_texture.attachment_format,
+				// 	    linearColor     = true,
+				// 	}
+				// 	// im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
                     
-                }
+                // }
             
             }
             NRI.CmdEndRendering(command_buffer)
