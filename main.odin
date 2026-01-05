@@ -225,31 +225,31 @@ main :: proc() {
     }
 
 
-	im_interface : nri.ImguiInterface
-	nri_imgui : ^nri.Imgui
-    { // Init Imgui 
-		im.CHECKVERSION()
-		im.CreateContext()
-		io := im.GetIO()
+	// im_interface : nri.ImguiInterface
+	// nri_imgui : ^nri.Imgui
+    // { // Init Imgui 
+	// 	im.CHECKVERSION()
+	// 	im.CreateContext()
+	// 	io := im.GetIO()
 
-        // io.BackendFlags += {.HasMouseCursors}
-        io.BackendFlags += {.RendererHasVtxOffset}
-        io.BackendFlags += {.RendererHasTextures}
-        io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
+    //     // io.BackendFlags += {.HasMouseCursors}
+    //     io.BackendFlags += {.RendererHasVtxOffset}
+    //     io.BackendFlags += {.RendererHasTextures}
+    //     io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
 
-        im.StyleColorsDark()
+    //     im.StyleColorsDark()
 
-        // im.FontAtlas_AddFontDefault(io.Fonts)
+    //     // im.FontAtlas_AddFontDefault(io.Fonts)
 
-		imgui_impl_sdl3.InitForOther(window)
+	// 	imgui_impl_sdl3.InitForOther(window)
 
-	    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
+	//     NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
 
-	    imgui_desc := nri.ImguiDesc{
-	        descriptorPoolSize = 1024
-	    }
-	    NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
-	}
+	//     imgui_desc := nri.ImguiDesc{
+	//         descriptorPoolSize = 1024
+	//     }
+	//     NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
+	// }
 
     pipeline_layout : ^nri.PipelineLayout
     { // Pipeline layout
@@ -299,7 +299,7 @@ main :: proc() {
             rootSamplers     = &root_sampler,
             rootSamplerNum   = 1,
             descriptorSets   = raw_data(&descriptor_set_descs),
-            descriptorSetNum = 2,
+            descriptorSetNum = len(descriptor_set_descs),
             shaderStages     = {.VERTEX_SHADER, .FRAGMENT_SHADER},
             // flags            = PipelineLayoutBits,
         }
@@ -310,11 +310,13 @@ main :: proc() {
     pipeline : ^nri.Pipeline
     // shader_code_storage
     { // Pipeline
-        vertex_stream_desc := nri.VertexStreamDesc{
-            bindingSlot= 0,
-            // stepRate   = VertexStreamStepRate,
+        vertex_stream_desc := [1]nri.VertexStreamDesc{
+            {
+                bindingSlot= 0,
+                stepRate   = .PER_VERTEX,
+            }
         }
-        vertex_attribute_descs : []nri.VertexAttributeDesc = {
+        vertex_attribute_descs : [2]nri.VertexAttributeDesc = {
             {
                 d3d        = {"POSITION", 0},
                 vk         = { location = 0 },
@@ -332,9 +334,9 @@ main :: proc() {
         }
 
         vertex_input_desc := nri.VertexInputDesc{
-            attributes  = raw_data(vertex_attribute_descs),
+            attributes  = &vertex_attribute_descs[0],
             attributeNum= u8(len(vertex_attribute_descs)),
-            streams     = &vertex_stream_desc,
+            streams     = &vertex_stream_desc[0],
             streamNum   = 1,
         }
 
@@ -397,7 +399,9 @@ main :: proc() {
             // robustness    = Robustness,
         }
 
+        fmt.printfln("Creating graphics pipeline...")
         NRI_ABORT_ON_FAILURE(NRI.CreateGraphicsPipeline(device, &graphics_pipeline_desc, &pipeline))
+        fmt.printfln("Graphics pipeline created.")
     }
 
     descriptor_pool : ^nri.DescriptorPool
@@ -518,7 +522,7 @@ main :: proc() {
                     textureNum  = u32(textures.Size),
                     // textureNum  = 0,
                 }
-                im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
+                // im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
             }
 
 
@@ -551,7 +555,7 @@ main :: proc() {
 					    attachmentFormat= swapchain_texture.attachment_format,
 					    linearColor     = true,
 					}
-					im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
+					// im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
                     
                 }
             

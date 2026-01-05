@@ -103,6 +103,7 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         fmt.eprintfln("Failed to determine shader stage for shader: %s", shader_name)
         os.exit(-1)
     }
+    fmt.printfln("Loading shader: %s, stage: %s", shader_name, shader_stage)
 
     SHADER_FOLDER :: "shaders/dxil/"
     shader_filename := strings.concatenate({SHADER_FOLDER, shader_name, get_shader_extension(graphics_api)})
@@ -118,8 +119,8 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         stage         = shader_stage,
         bytecode      = rawptr(&code),
         size          = u64(len(code)),
-        // entryPointName= "main",
-        entryPointName= nil,
+        entryPointName= "main",
+        // entryPointName= nil,
     }
 
     return shader_desc
