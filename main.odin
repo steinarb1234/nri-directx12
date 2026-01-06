@@ -70,6 +70,27 @@ ConstantBufferLayout :: struct {
     scale: f32,
 }
 
+Mip :: rawptr
+
+AlphaMode :: enum {
+    OPAQUE,
+    PREMULTIPLIED,
+    TRANSPARENT,
+    OFF, // alpha is 0 everywhere
+}
+
+Texture :: struct {
+    name     : cstring,
+    mips     : ^Mip,
+    AlphaMode: AlphaMode,
+    format   : nri.Format,
+    width    : u16,
+    height   : u16,
+    depth    : u16,
+    mipNum   : u16,
+    layerNum : u16,
+}
+
 Vertex :: struct{
     position: [2]f32,
     // color:    [3]f32,
@@ -415,6 +436,29 @@ main :: proc() {
 
         NRI_ABORT_ON_FAILURE(NRI.CreateDescriptorPool(device, &descriptor_pool_desc, &descriptor_pool))
     }
+
+    // Load texture
+    texture_data : Texture
+    tex_load_succ := load_texture("assets/textures/round_cat.png", &texture_data, false)
+    
+    texture : ^nri.Texture
+    { // Read-only texture
+        texture_desc := nri.TextureDesc{
+            type               = .TEXTURE_2D,
+            usage              = {.SHADER_RESOURCE},
+            format             = .RGBA8_UNORM,
+            width              = u16(texture_data.width),
+            height             = u16(texture_data.height),
+            depth              = 1,
+            mipNum             = 1,
+            layerNum           = 1,
+            sampleNum          = 1,
+            // sharingMode        = SharingMode,
+            // optimizedClearValue= ClearValue,         // D3D12: not needed on desktop, since any HW can track many clear values
+        }
+        NRI_ABORT_ON_FAILURE(NRI.CreateTexture(device, &texture_desc, &texture))
+    }
+
 
 
 

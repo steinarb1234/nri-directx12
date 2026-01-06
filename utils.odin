@@ -2,14 +2,15 @@
 
 package main
 
-import     "core:os"
-import     "core:strings"
-import     "core:fmt"
-import     "base:runtime"
-import sdl "vendor:sdl3"
-import     "core:log"
-import nri "libs/NRI-odin"
-import     "core:path/filepath"
+import      "core:os"
+import      "core:strings"
+import      "core:fmt"
+import      "core:log"
+import      "core:path/filepath"
+import      "base:runtime"
+import sdl  "vendor:sdl3"
+import stbi "vendor:stb/image"
+import nri  "libs/NRI-odin"
 
 
 sdl_log :: proc "c" (userdata: rawptr, category: sdl.LogCategory, priority: sdl.LogPriority, message: cstring) {
@@ -67,8 +68,6 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         }
     }
 
-
-
     shader_stage_filename := filepath.ext(shader_name) // f.x. "Triangle.vs" -> ".vs"
     shader_stage : nri.StageBits
     switch shader_stage_filename {
@@ -94,7 +93,6 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
     shader_filename := strings.concatenate({SHADER_FOLDER, shader_name, get_shader_extension(graphics_api)})
 
 	code, ok := os.read_entire_file(shader_filename, context.allocator)
-
 	if !ok {
         fmt.eprintfln("Failed to load shader: %s", shader_filename)
         os.exit(-1)
@@ -102,15 +100,34 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
 
     shader_desc : nri.ShaderDesc = {
         stage         = shader_stage,
-        bytecode      = rawptr(raw_data(code)),
+        bytecode      = raw_data(code),
         size          = u64(len(code)),
         entryPointName= "main",
-        // entryPointName= nil,
     }
 
     return shader_desc
 }
 
+load_texture :: proc(path: cstring, texture: ^Texture, compute_avg_color_and_alpha_mode: bool) -> bool {
+    fmt.printfln("Loading texture '%s'...", path)
+
+    width, height, nr_channels : i32
+    image_data := stbi.load(path, &width, &height, &nr_channels, 4)
+    assert(image_data != nil)
+
+    // Postprocess texture
+    texture.name     = path
+    // texture.mips     = 
+    texture.AlphaMode= .OPAQUE
+    texture.format   = .RGBA8_UNORM
+    texture.width    = u16(width)
+    texture.height   = u16(height)
+    // texture.depth    = u16
+    texture.mipNum   = 1
+    texture.layerNum = 1
+
+    return true
+}
 
 
 
