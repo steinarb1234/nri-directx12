@@ -239,7 +239,8 @@ main :: proc() {
         }
     }
     
-    frames : [BUFFERED_FRAME_MAX_NUM]Frame 
+    // frames : [BUFFERED_FRAME_MAX_NUM]Frame 
+    frames : [queued_frame_num]Frame 
     for &frame in frames[:] {
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandAllocator(command_queue, &frame.command_allocator))
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandBuffer(frame.command_allocator, &frame.command_buffer))
@@ -462,12 +463,17 @@ main :: proc() {
 
 
 
-    frame_index := 0
+    frame_index : u64 = 0
     game_loop: for {
 
 		{ // Latency sleep
 			queued_frame_index := frame_index % queued_frame_num
 			wait_value := frame_index >= queued_frame_num ? 1 + frame_index - queued_frame_num : 0
+            // signal_value := frame_index + 1
+            // wait_value : u64 = 0
+            // if frame_index >= queued_frame_num {
+            //     wait_value = frame_index + 1 - queued_frame_num
+            // }
 
 			NRI.Wait(frame_fence, u64(wait_value))
 
@@ -491,9 +497,12 @@ main :: proc() {
             }
 		}
         
-        buffered_frame_index := frame_index % BUFFERED_FRAME_MAX_NUM
-        frame := frames[buffered_frame_index]
+        // buffered_frame_index := frame_index % queued_frame_num
+        // frame := frames[buffered_frame_index]
+        queued_frame_index := frame_index % queued_frame_num
+        queued_frame := queued_frames[queued_frame_index]
 
+        // Acquire swapchain texture
         recycled_semaphore_index := frame_index % len(swapchain_textures)
         swapchain_acquire_semaphore := swapchain_textures[recycled_semaphore_index].acquire_semaphore
 
@@ -502,8 +511,11 @@ main :: proc() {
 
         swapchain_texture := swapchain_textures[current_swapchain_texture_index]
 
-        command_buffer := frame.command_buffer
-        NRI.BeginCommandBuffer(command_buffer, nil)
+        // Update constants
+        // common_constants := NRI.MapBuffer(consta)
+
+        command_buffer := queued_frame.command_buffer
+        NRI.BeginCommandBuffer(command_buffer, descriptor_pool)
         {
             texture_barriers := nri.TextureBarrierDesc{
                 texture    = swapchain_texture.texture,
@@ -511,12 +523,12 @@ main :: proc() {
                 after      = {
                     access = {.COLOR_ATTACHMENT},
                     layout = .COLOR_ATTACHMENT,
-                    stages = {.COLOR_ATTACHMENT},
+                    // stages = {.COLOR_ATTACHMENT},
                 },
                 // mipOffset  = Dim_t,
-                mipNum     = 1,               // can be "REMAINING"
+                // mipNum     = 1,               // can be "REMAINING"
                 // layerOffset= Dim_t,
-                layerNum   = 1,               // can be "REMAINING"
+                // layerNum   = 1,               // can be "REMAINING"
                 // planes     = PlaneBits,
                 // srcQueue   = ^Queue,
                 // dstQueue   = ^Queue,
@@ -532,13 +544,15 @@ main :: proc() {
             }
             NRI.CmdBarrier(command_buffer, &barrier_desc)
 
-            attachments_desc := nri.AttachmentsDesc{
+            color_attachment_desc := nri.AttachmentDesc{
                 // depthStencil= ^Descriptor,
                 // shadingRate = ^Descriptor,      // requires "tiers.shadingRate >= 2"
                 colors      = &swapchain_texture.color_attachment,
                 colorNum    = 1,
                 // viewMask    = u32,              // if non-0, requires "viewMaxNum > 1"
             }
+
+            rendering_desc := nri.RenderingDesc
 
             // imgui_copy : nri.CopyImguiDataDesc
             // imgui_draw_data : ^im.DrawData
@@ -571,7 +585,7 @@ main :: proc() {
             // }
 
 
-            NRI.CmdBeginRendering(command_buffer, &attachments_desc)
+            NRI.CmdBeginRendering(command_buffer, &color_attachment_desc)
             {
                 { // Clear screen
 					NRI.CmdBeginAnnotation(command_buffer, "Clear screen", 0); defer(NRI.CmdEndAnnotation(command_buffer))
@@ -620,7 +634,6 @@ main :: proc() {
         { // Submit
             texture_acquired_fence := nri.FenceSubmitDesc{
                 fence = swapchain_acquire_semaphore,
-                // value = u64,
                 stages= {.COLOR_ATTACHMENT},
             }
 
@@ -631,17 +644,33 @@ main :: proc() {
             queue_submit_desc := nri.QueueSubmitDesc{
                 waitFences      = &texture_acquired_fence,
                 waitFenceNum    = 1,
-                commandBuffers  = &frame.command_buffer,
+                commandBuffers  = &queued_frame.command_buffer,
                 commandBufferNum= 1,
                 signalFences    = &rendering_finished_fence,
                 signalFenceNum  = 1,
-                swapChain       = swapchain, // required if "NRILowLatency" is enabled in the swap chain
+                // swapChain       = swapchain, // required if "NRILowLatency" is enabled in the swap chain
             }
             NRI.QueueSubmit(command_queue, &queue_submit_desc)
         }
 
+        NRI.EndStreamerFrame(streamer)
+
         // Present
         NRI.QueuePresent(swapchain, swapchain_texture.release_semaphore)
+
+        // { // Signaling after "Present" improves D3D11 performance a bit
+        //     signal_fence := nri.FenceSubmitDesc{
+        //         fence = frame_fence,
+        //         value = 1 + frame_index
+        //     }
+
+        //     queue_submit_desc := nri.QueueSubmitDesc{
+        //         signalFences = &signal_fence,
+        //         signalFenceNum = 1
+        //     }
+
+        //     NRI.QueueSubmit(command_queue, &queue_submit_desc)
+        // }
 
         frame_index += 1
 
