@@ -1,0 +1,6 @@
+[submodule "libs/NRI-odin"]
+	path = libs/NRI-odin
+	url = https://github.com/steinarb1234/NRI-odin.git
+[submodule "libs/odin-imgui"]
+	path = libs/odin-imgui
+	url = https://github.com/steinarb1234/odin-imgui.git

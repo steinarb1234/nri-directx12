@@ -214,7 +214,7 @@ main :: proc() {
         nri_swapchain_textures := NRI.GetSwapChainTextures(swapchain, &swapchain_texture_num)
         swapchain_format = NRI.GetTextureDesc(nri_swapchain_textures[0]).format
         for i:u32=0; i<swapchain_texture_num; i+=1 {
-            texture_view_desc := nri.Texture2DViewDesc{nri_swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0}
+            texture_view_desc := nri.Texture2DViewDesc{nri_swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0, {}}
 
             color_attachment : ^nri.Descriptor
             NRI_ABORT_ON_FAILURE(NRI.CreateTexture2DView(&texture_view_desc, &color_attachment))
@@ -280,7 +280,7 @@ main :: proc() {
                 min = .LINEAR,
                 mag = .LINEAR,
                 mip = .LINEAR,
-	            ext = .AVERAGE, // requires "features.textureFilterMinMax"
+	            op = .AVERAGE, // requires "features.textureFilterMinMax"
             },
             anisotropy             = 4,
             // mipBias                = f32,
@@ -388,7 +388,7 @@ main :: proc() {
                 op       = .ADD,
             },
             // alphaBlend    = BlendDesc,
-            colorWriteMask= .RGBA,
+            colorWriteMask= nri.COLORWRITEBITS_RGBA,
             blendEnabled  = true,
         }
 
@@ -521,7 +521,7 @@ main :: proc() {
                 texture    = swapchain_texture.texture,
                 // before     = AccessLayoutStage,
                 after      = {
-                    access = {.COLOR_ATTACHMENT},
+                    access = nri.ACCESSBITS_COLOR_ATTACHMENT,
                     layout = .COLOR_ATTACHMENT,
                     // stages = {.COLOR_ATTACHMENT},
                 },
@@ -545,14 +545,23 @@ main :: proc() {
             NRI.CmdBarrier(command_buffer, &barrier_desc)
 
             color_attachment_desc := nri.AttachmentDesc{
-                // depthStencil= ^Descriptor,
-                // shadingRate = ^Descriptor,      // requires "tiers.shadingRate >= 2"
-                colors      = &swapchain_texture.color_attachment,
-                colorNum    = 1,
-                // viewMask    = u32,              // if non-0, requires "viewMaxNum > 1"
+                descriptor= swapchain_texture.color_attachment,
+                // clearValue= ClearValue,
+                // loadOp    = LoadOp,
+                // storeOp   = StoreOp,
+                // resolveOp = ResolveOp,
+                // resolveDst= ^Descriptor,   // must be valid during "CmdEndRendering"
             }
 
-            rendering_desc := nri.RenderingDesc
+            rendering_desc := nri.RenderingDesc{
+                colors     = &color_attachment_desc,
+                colorNum   = 1,
+                // depth      = AttachmentDesc,      // may be treated as "depth-stencil"
+                // stencil    = AttachmentDesc,      // (optional) separation is needed for multisample resolve
+                // shadingRate= ^Descriptor,         // requires "tiers.shadingRate >= 2"
+                viewMask   = 0,                 // if non-0, requires "viewMaxNum > 1"
+
+            }
 
             // imgui_copy : nri.CopyImguiDataDesc
             // imgui_draw_data : ^im.DrawData
@@ -585,12 +594,12 @@ main :: proc() {
             // }
 
 
-            NRI.CmdBeginRendering(command_buffer, &color_attachment_desc)
+            NRI.CmdBeginRendering(command_buffer, &rendering_desc)
             {
                 { // Clear screen
 					NRI.CmdBeginAnnotation(command_buffer, "Clear screen", 0); defer(NRI.CmdEndAnnotation(command_buffer))
 
-	                clear_desc := nri.ClearDesc{
+	                clear_desc := nri.ClearAttachmentDesc{
 	                    value = {
 	                        color = {
 	                            f = {1.0, 0.0, 0.0, 1.0}
