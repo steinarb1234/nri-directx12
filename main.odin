@@ -47,17 +47,12 @@ Frame :: struct {
 
 NUM_RENDERTARGETS :: 2
 BUFFERED_FRAME_MAX_NUM :: 2
-swapchain_textures : [NUM_RENDERTARGETS]SwapChainTexture
 
-QueuedFrame :: struct {
-    command_allocator: ^nri.CommandAllocator,
-    command_buffer: ^nri.CommandBuffer,
-};
-queued_frames : [queued_frame_num]QueuedFrame
-
-vsync_interval :: false
+vsync_interval :: true
 when vsync_interval {queued_frame_num :: 2}
 else                {queued_frame_num :: 3}
+
+swapchain_textures : [queued_frame_num + 1]SwapChainTexture
 
 window : ^sdl.Window
 window_height : i32 = 768
@@ -197,7 +192,7 @@ main :: proc() {
         queue         = command_queue,
         width         = nri.Dim_t(window_width),
         height        = nri.Dim_t(window_height),
-        textureNum    = 2, // frambuffers
+        textureNum    = queued_frame_num + 1, // frambuffers
         format        = .BT709_G22_8BIT,
         // flags         = SwapChainBits,
         queuedFrameNum= queued_frame_num,
@@ -239,7 +234,6 @@ main :: proc() {
         }
     }
     
-    // frames : [BUFFERED_FRAME_MAX_NUM]Frame 
     frames : [queued_frame_num]Frame 
     for &frame in frames[:] {
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandAllocator(command_queue, &frame.command_allocator))
@@ -247,31 +241,31 @@ main :: proc() {
     }
 
 
-	// im_interface : nri.ImguiInterface
-	// nri_imgui : ^nri.Imgui
-    // { // Init Imgui 
-	// 	im.CHECKVERSION()
-	// 	im.CreateContext()
-	// 	io := im.GetIO()
+	im_interface : nri.ImguiInterface
+	nri_imgui : ^nri.Imgui
+    { // Init Imgui 
+		im.CHECKVERSION()
+		im.CreateContext()
+		io := im.GetIO()
 
-    //     // io.BackendFlags += {.HasMouseCursors}
-    //     io.BackendFlags += {.RendererHasVtxOffset}
-    //     io.BackendFlags += {.RendererHasTextures}
-    //     io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
+        // io.BackendFlags += {.HasMouseCursors}
+        io.BackendFlags += {.RendererHasVtxOffset}
+        io.BackendFlags += {.RendererHasTextures}
+        io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
 
-    //     im.StyleColorsDark()
+        im.StyleColorsDark()
 
-    //     // im.FontAtlas_AddFontDefault(io.Fonts)
+        // im.FontAtlas_AddFontDefault(io.Fonts)
 
-	// 	imgui_impl_sdl3.InitForOther(window)
+		imgui_impl_sdl3.InitForOther(window)
 
-	//     NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
+	    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
 
-	//     imgui_desc := nri.ImguiDesc{
-	//         descriptorPoolSize = 1024
-	//     }
-	//     NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
-	// }
+	    imgui_desc := nri.ImguiDesc{
+	        descriptorPoolSize = 1024
+	    }
+	    NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
+	}
 
     pipeline_layout : ^nri.PipelineLayout
     { // Pipeline layout
@@ -466,24 +460,19 @@ main :: proc() {
     frame_index : u64 = 0
     game_loop: for {
 
+        queued_frame_index := frame_index % queued_frame_num
+        queued_frame := frames[queued_frame_index]
 		{ // Latency sleep
-			queued_frame_index := frame_index % queued_frame_num
 			wait_value := frame_index >= queued_frame_num ? 1 + frame_index - queued_frame_num : 0
-            // signal_value := frame_index + 1
-            // wait_value : u64 = 0
-            // if frame_index >= queued_frame_num {
-            //     wait_value = frame_index + 1 - queued_frame_num
-            // }
-
 			NRI.Wait(frame_fence, u64(wait_value))
 
-			NRI.ResetCommandAllocator(frames[queued_frame_index].command_allocator)
+			NRI.ResetCommandAllocator(queued_frame.command_allocator)
 		}
 
         { // Handle keyboard and mouse input
 			e: sdl.Event
 			for sdl.PollEvent(&e) {
-				// imgui_impl_sdl3.ProcessEvent(&e)
+				imgui_impl_sdl3.ProcessEvent(&e)
 				#partial switch e.type {
                     case .QUIT:
                         break game_loop
@@ -496,11 +485,6 @@ main :: proc() {
                 }
             }
 		}
-        
-        // buffered_frame_index := frame_index % queued_frame_num
-        // frame := frames[buffered_frame_index]
-        queued_frame_index := frame_index % queued_frame_num
-        queued_frame := queued_frames[queued_frame_index]
 
         // Acquire swapchain texture
         recycled_semaphore_index := frame_index % len(swapchain_textures)
@@ -563,35 +547,35 @@ main :: proc() {
 
             }
 
-            // imgui_copy : nri.CopyImguiDataDesc
-            // imgui_draw_data : ^im.DrawData
-            // { // Imgui prepare frame
-            //     imgui_impl_sdl3.NewFrame()
-            //     im.NewFrame()
-            //     {
-            //         im.ShowDemoWindow()
+            imgui_copy : nri.CopyImguiDataDesc
+            imgui_draw_data : ^im.DrawData
+            { // Imgui prepare frame
+                imgui_impl_sdl3.NewFrame()
+                im.NewFrame()
+                {
+                    im.ShowDemoWindow()
 
-            //         // im.Begin("Debug window")
-            //         //     im.Text("frame: %i", frame_index)
-            //         //     // im.Text("FPS: %.1f", fps)
-            //         // im.End()
+                    // im.Begin("Debug window")
+                    //     im.Text("frame: %i", frame_index)
+                    //     // im.Text("FPS: %.1f", fps)
+                    // im.End()
 
-            //     }
-            //     im.EndFrame()
-            //     im.Render()
+                }
+                im.EndFrame()
+                im.Render()
     
-            //     imgui_draw_data = im.GetDrawData()
-            //     textures := im.GetPlatformIO().Textures
-            //     imgui_copy = nri.CopyImguiDataDesc{
-            //         drawLists   = cast(^^nri.ImDrawList)imgui_draw_data.CmdLists.Data,
-            //         drawListNum = u32(imgui_draw_data.CmdLists.Size),
-            //         textures    = cast(^^nri.ImTextureData)textures.Data,
-            //         // textures    = nil,
-            //         textureNum  = u32(textures.Size),
-            //         // textureNum  = 0,
-            //     }
-            //     // im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
-            // }
+                imgui_draw_data = im.GetDrawData()
+                textures := im.GetPlatformIO().Textures
+                imgui_copy = nri.CopyImguiDataDesc{
+                    drawLists   = cast(^^nri.ImDrawList)imgui_draw_data.CmdLists.Data,
+                    drawListNum = u32(imgui_draw_data.CmdLists.Size),
+                    textures    = cast(^^nri.ImTextureData)textures.Data,
+                    // textures    = nil,
+                    textureNum  = u32(textures.Size),
+                    // textureNum  = 0,
+                }
+                im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
+            }
 
 
             NRI.CmdBeginRendering(command_buffer, &rendering_desc)
@@ -612,20 +596,20 @@ main :: proc() {
 	                NRI.CmdClearAttachments(command_buffer, &clear_desc, 1, &rect1, 1)
 				}
 
-				// { // Imgui present
-				// 	NRI.CmdBeginAnnotation(command_buffer, "Imgui present", 0); defer(NRI.CmdEndAnnotation(command_buffer))
+				{ // Imgui present
+					NRI.CmdBeginAnnotation(command_buffer, "Imgui present", 0); defer(NRI.CmdEndAnnotation(command_buffer))
 
-				// 	draw_imgui_desc := nri.DrawImguiDesc{
-				// 	    drawLists       = imgui_copy.drawLists,
-				// 	    drawListNum     = imgui_copy.drawListNum,
-				// 	    displaySize     = {u16(imgui_draw_data.DisplaySize.x), u16(imgui_draw_data.DisplaySize.y)},
-				// 	    hdrScale        = 1.0,
-				// 	    attachmentFormat= swapchain_texture.attachment_format,
-				// 	    linearColor     = true,
-				// 	}
-				// 	// im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
+					draw_imgui_desc := nri.DrawImguiDesc{
+					    drawLists       = imgui_copy.drawLists,
+					    drawListNum     = imgui_copy.drawListNum,
+					    displaySize     = {u16(imgui_draw_data.DisplaySize.x), u16(imgui_draw_data.DisplaySize.y)},
+					    hdrScale        = 1.0,
+					    attachmentFormat= swapchain_texture.attachment_format,
+					    linearColor     = true,
+					}
+					im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
                     
-                // }
+                }
             
             }
             NRI.CmdEndRendering(command_buffer)
@@ -657,7 +641,7 @@ main :: proc() {
                 commandBufferNum= 1,
                 signalFences    = &rendering_finished_fence,
                 signalFenceNum  = 1,
-                // swapChain       = swapchain, // required if "NRILowLatency" is enabled in the swap chain
+                swapChain       = swapchain, // required if "NRILowLatency" is enabled in the swap chain
             }
             NRI.QueueSubmit(command_queue, &queue_submit_desc)
         }
@@ -667,19 +651,19 @@ main :: proc() {
         // Present
         NRI.QueuePresent(swapchain, swapchain_texture.release_semaphore)
 
-        // { // Signaling after "Present" improves D3D11 performance a bit
-        //     signal_fence := nri.FenceSubmitDesc{
-        //         fence = frame_fence,
-        //         value = 1 + frame_index
-        //     }
+        { // Signaling after "Present" improves D3D11 performance a bit
+            signal_fence := nri.FenceSubmitDesc{
+                fence = frame_fence,
+                value = 1 + frame_index
+            }
 
-        //     queue_submit_desc := nri.QueueSubmitDesc{
-        //         signalFences = &signal_fence,
-        //         signalFenceNum = 1
-        //     }
+            queue_submit_desc := nri.QueueSubmitDesc{
+                signalFences = &signal_fence,
+                signalFenceNum = 1
+            }
 
-        //     NRI.QueueSubmit(command_queue, &queue_submit_desc)
-        // }
+            NRI.QueueSubmit(command_queue, &queue_submit_desc)
+        }
 
         frame_index += 1
 
