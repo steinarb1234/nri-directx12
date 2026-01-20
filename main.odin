@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:sys/windows"
 import "core:os"
+import "core:time"
 import sdl "vendor:sdl3"
 
 // Nvidia NRI
@@ -45,14 +46,13 @@ Frame :: struct {
     constant_buffer_view_offset   : u64,
 }
 
-NUM_RENDERTARGETS :: 2
-BUFFERED_FRAME_MAX_NUM :: 2
-
-vsync_interval :: true
+// vsync_interval :: true
+vsync_interval :: false
 when vsync_interval {queued_frame_num :: 2}
 else                {queued_frame_num :: 3}
 
-swapchain_textures : [queued_frame_num + 1]SwapChainTexture
+swapchain_texture_num :: queued_frame_num + 1
+swapchain_textures : [swapchain_texture_num]SwapChainTexture
 
 window : ^sdl.Window
 window_height : i32 = 768
@@ -137,7 +137,7 @@ main :: proc() {
         // vkBindingOffsets                 = VKBindingOffsets,
         // vkExtensions                     = VKExtensions,
         enableNRIValidation              = true,
-        enableGraphicsAPIValidation      = true, // Note: Enabled causes lag for window interactions
+        enableGraphicsAPIValidation      = true,
         // enableD3D11CommandBufferEmulation= bool,
         // enableD3D12RayTracingValidation  = bool,
         // enableMemoryZeroInitialization   = bool,
@@ -148,6 +148,20 @@ main :: proc() {
     if nri.CreateDevice(&device_creation_desc, &device) != .SUCCESS {
         fmt.printfln("Failed to init nri device")
         os.exit(-1)
+    }
+
+    { // Print D3D12 module path
+        module := windows.GetModuleHandleA("D3D12Core.dll")
+        if module == nil {
+            fmt.printfln("Failed to get D3D12Core.dll handle")
+            os.exit(-1)
+        }
+        buf : [windows.MAX_PATH]u16
+        buf_len := windows.GetModuleFileNameW(module, &buf[0], windows.MAX_PATH)
+        if buf_len > 0 {
+            path, path_err := windows.utf16_to_utf8(buf[0:buf_len])
+            fmt.printfln("Using D3D12 module: {}", path)
+        }
     }
     
     NRI: NRI_Interface
@@ -192,9 +206,9 @@ main :: proc() {
         queue         = command_queue,
         width         = nri.Dim_t(window_width),
         height        = nri.Dim_t(window_height),
-        textureNum    = queued_frame_num + 1, // frambuffers
+        textureNum    = swapchain_texture_num, // frambuffers
         format        = .BT709_G22_8BIT,
-        // flags         = SwapChainBits,
+        flags         = vsync_interval ? {.VSYNC} : {.ALLOW_TEARING}, // .VSYNC seems to be broken
         queuedFrameNum= queued_frame_num,
         scaling       = .STRETCH,
         // gravityX      = Gravity,
@@ -297,8 +311,6 @@ main :: proc() {
             shaderStages  = {.FRAGMENT_SHADER},
         }
         root_sampler := nri.RootSamplerDesc{0, sampler_desc, {.FRAGMENT_SHADER}}
-        // STAGEBITS_ALL :: nri.StageBits{} // Missing in the nri-odin bindings
-        // STAGEBITS_ALL :: nri.StageBits{} // Missing in the nri-odin bindings
         set_constant_buffer := nri.DescriptorRangeDesc{0, 1, .CONSTANT_BUFFER, nri.STAGEBITS_ALL, {}}
         set_texture := nri.DescriptorRangeDesc{0, 1, .TEXTURE, {.FRAGMENT_SHADER}, {}}
 
@@ -424,7 +436,7 @@ main :: proc() {
     descriptor_pool : ^nri.DescriptorPool
     { // Descriptor pool
         descriptor_pool_desc := nri.DescriptorPoolDesc{
-            descriptorSetMaxNum = queued_frame_num + 1,
+            descriptorSetMaxNum = swapchain_texture_num,
             constantBufferMaxNum = queued_frame_num,
             textureMaxNum = 1,
         }
@@ -458,13 +470,21 @@ main :: proc() {
 
 
     frame_index : u64 = 0
+    start_time := time.tick_now() // nanosecond precision timer
+	last_time_secs : f32 = 0
+	fps: f32
     game_loop: for {
+        time_since_start := time.tick_since(start_time)
+		time_since_start_secs := f32(time.duration_seconds(time_since_start))
+		delta_time := time_since_start_secs - last_time_secs
+		fps = 1 / delta_time
+		last_time_secs = time_since_start_secs
 
         queued_frame_index := frame_index % queued_frame_num
         queued_frame := frames[queued_frame_index]
 		{ // Latency sleep
 			wait_value := frame_index >= queued_frame_num ? 1 + frame_index - queued_frame_num : 0
-			NRI.Wait(frame_fence, u64(wait_value))
+            NRI.Wait(frame_fence, u64(wait_value))
 
 			NRI.ResetCommandAllocator(queued_frame.command_allocator)
 		}
@@ -553,12 +573,11 @@ main :: proc() {
                 imgui_impl_sdl3.NewFrame()
                 im.NewFrame()
                 {
-                    im.ShowDemoWindow()
 
-                    // im.Begin("Debug window")
-                    //     im.Text("frame: %i", frame_index)
-                    //     // im.Text("FPS: %.1f", fps)
-                    // im.End()
+                    im.Begin("Debug window")
+                        // im.Text("frame: %i", frame_index)
+                        im.Text("FPS: %.1f", fps)
+                    im.End()
 
                 }
                 im.EndFrame()

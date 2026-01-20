@@ -130,4 +130,16 @@ load_texture :: proc(path: cstring, texture: ^Texture, compute_avg_color_and_alp
 }
 
 
-
+// D3D12 exports to enable Agility SDK
+// AgilitySDK makes the replaces the D3D12Core.dll that comes with Windows by default. 
+// Used to guarantee that we have a version that supports newer D3D12 features even on older Windows versions.
+// More info: https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/
+@(export, link_name="D3D12SDKVersion")
+D3D12SDKVersion : u32 = 618 // __declspec(dllexport) extern const uint32_t D3D12SDKVersion;
+when ODIN_DEBUG {
+    @(export, link_name="D3D12SDKPath")
+    D3D12SDKPath : cstring = "libs/NRI-odin/Lib/Debug/AgilitySDK/" // __declspec(dllexport) extern const char* D3D12SDKPath;
+} else {
+    @(export, link_name="D3D12SDKPath") 
+    D3D12SDKPath : cstring = "libs/NRI-odin/Lib/Release/AgilitySDK/" // __declspec(dllexport) extern const char* D3D12SDKPath;
+}
