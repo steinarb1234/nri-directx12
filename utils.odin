@@ -129,6 +129,15 @@ load_texture :: proc(path: cstring, texture: ^Texture, compute_avg_color_and_alp
     return true
 }
 
+align :: proc(size: int, alignment: int) -> u64 {
+    return u64((size + alignment - 1) & ~(alignment -1))
+}
+
+get_subresources :: proc(subresource: nri.TextureSubresourceUploadDesc, mip_index: u32, array_index: u32) {
+
+}
+
+
 
 // D3D12 exports to enable Agility SDK
 // AgilitySDK makes the replaces the D3D12Core.dll that comes with Windows by default. 

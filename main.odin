@@ -1,5 +1,6 @@
 package main
 
+import "base:runtime"
 import "core:fmt"
 import "core:sys/windows"
 import "core:os"
@@ -59,6 +60,14 @@ window_height : i32 = 768
 window_width  : i32 = 1024
 
 device : ^nri.Device
+texture_descriptor_set : ^nri.DescriptorSet
+texture_shader_resource : ^nri.Descriptor
+constant_buffer : ^nri.Buffer
+geometry_buffer : ^nri.Buffer
+geometry_offset : u64
+
+
+memory_allocations : [dynamic]^nri.Memory
 
 ConstantBufferLayout :: struct {
     color: [3]f32,
@@ -92,7 +101,7 @@ Vertex :: struct{
     uv:       [2]f32,
 }
 
-triangle_vertices :: [3]Vertex{
+triangle_vertices := []Vertex{
     {{0.0,   0.5}, {0.0, 0.0}},
     {{0.5,  -0.5}, {1.0, 1.0}},
     {{-0.5, -0.5}, {0.0, 1.0}},
@@ -100,7 +109,7 @@ triangle_vertices :: [3]Vertex{
 
 Index :: u16
 
-triangle_indeces :: [3]Index{0, 1, 2}
+triangle_indeces := []Index{0, 1, 2}
 
 
 main :: proc() {
@@ -150,6 +159,7 @@ main :: proc() {
         os.exit(-1)
     }
 
+    if graphics_api == .D3D12
     { // Print D3D12 module path
         module := windows.GetModuleHandleA("D3D12Core.dll")
         if module == nil {
@@ -253,33 +263,6 @@ main :: proc() {
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandAllocator(command_queue, &frame.command_allocator))
         NRI_ABORT_ON_FAILURE(NRI.CreateCommandBuffer(frame.command_allocator, &frame.command_buffer))
     }
-
-
-	im_interface : nri.ImguiInterface
-	nri_imgui : ^nri.Imgui
-    { // Init Imgui 
-		im.CHECKVERSION()
-		im.CreateContext()
-		io := im.GetIO()
-
-        // io.BackendFlags += {.HasMouseCursors}
-        io.BackendFlags += {.RendererHasVtxOffset}
-        io.BackendFlags += {.RendererHasTextures}
-        io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
-
-        im.StyleColorsDark()
-
-        // im.FontAtlas_AddFontDefault(io.Fonts)
-
-		imgui_impl_sdl3.InitForOther(window)
-
-	    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
-
-	    imgui_desc := nri.ImguiDesc{
-	        descriptorPoolSize = 1024
-	    }
-	    NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
-	}
 
     pipeline_layout : ^nri.PipelineLayout
     { // Pipeline layout
@@ -466,6 +449,178 @@ main :: proc() {
         NRI_ABORT_ON_FAILURE(NRI.CreateTexture(device, &texture_desc, &texture))
     }
 
+    device_desc := NRI.GetDeviceDesc(device)
+    constant_buffer_size := align(size_of(ConstantBufferLayout), int(device_desc.memoryAlignment.constantBufferOffset))
+    fmt.printfln("Constant buffer size: %d", constant_buffer_size)
+    { // Constant buffer
+        buffer_desc := nri.BufferDesc{
+            size = constant_buffer_size * queued_frame_num,
+            usage = {.CONSTANT_BUFFER},
+        }
+        NRI_ABORT_ON_FAILURE(NRI.CreateBuffer(device, &buffer_desc, &constant_buffer))
+    }
+
+    index_data_size := size_of(triangle_indeces)
+    index_data_aligned_size := align(index_data_size, 16)
+    vertex_data_size := size_of(triangle_vertices)
+    { // Geometry buffer
+        buffer_desc := nri.BufferDesc{
+            size = index_data_aligned_size + u64(vertex_data_size),
+            usage = {.VERTEX_BUFFER, .INDEX_BUFFER},
+        }
+        NRI_ABORT_ON_FAILURE(NRI.CreateBuffer(device, &buffer_desc, &geometry_buffer))
+    }
+    geometry_offset = index_data_aligned_size
+
+    resource_group_desc := nri.ResourceGroupDesc{
+        memoryLocation     = .HOST_UPLOAD,
+        // textures           = [^]^Texture,
+        // textureNum         = u32,
+        buffers            = &constant_buffer,
+        bufferNum          = 1,
+        // preferredMemorySize= u64,              // desired chunk size (but can be greater if a resource doesn't fit), 256 Mb if 0
+    }
+
+    resize(&memory_allocations, 1)
+    NRI_ABORT_ON_FAILURE(NRI.AllocateAndBindMemory(device, &resource_group_desc, &raw_data(memory_allocations)[0]))
+    
+    resource_group_desc = {
+        memoryLocation     = .DEVICE,
+        textures           = &texture,
+        textureNum         = 1,
+        buffers            = &geometry_buffer,
+        bufferNum          = 1,
+        // preferredMemorySize= u64,              // desired chunk size (but can be greater if a resource doesn't fit), 256 Mb if 0
+    }
+    
+    resize(&memory_allocations, 1 + NRI.CalculateAllocationNumber(device, &resource_group_desc))
+    NRI_ABORT_ON_FAILURE(NRI.AllocateAndBindMemory(device, &resource_group_desc, &raw_data(memory_allocations)[1]))
+
+
+    { // Descriptors
+        // Read only texture
+        texture_2D_view_desc := nri.Texture2DViewDesc{
+            texture       = texture,
+            viewType      = .SHADER_RESOURCE,
+            // format        = NRI.GetTextureDesc(texture).format,
+            format        = texture_data.format,
+            // mipOffset     = Dim_t,
+            // mipNum        = Dim_t,               // can be "REMAINING"
+            // layerOffset   = Dim_t,
+            // layerNum      = Dim_t,               // can be "REMAINING"
+            // readonlyPlanes= PlaneBits,           // "DEPTH" and/or "STENCIL"
+        }
+        NRI_ABORT_ON_FAILURE(NRI.CreateTexture2DView(&texture_2D_view_desc, &texture_shader_resource))
+
+        // Constant buffer
+        for i : u64 = 0; i < queued_frame_num; i+=1 {
+            buffer_view_desc := nri.BufferViewDesc{
+                buffer         = constant_buffer,
+                viewType       = .CONSTANT,
+                // format         = Format,
+                offset         = i * constant_buffer_size, // expects "memoryAlignment.bufferShaderResourceOffset" for shader resources
+                size           = constant_buffer_size,     // can be "WHOLE_SIZE"
+                // structureStride= u32,                   // = "BufferDesc::structureStride", if not provided and "format" is "UNKNOWN"
+            }
+            NRI_ABORT_ON_FAILURE(NRI.CreateBufferView(&buffer_view_desc, &frames[i].constant_buffer_view))
+
+            frames[i].constant_buffer_view_offset = buffer_view_desc.offset
+        }
+    }
+
+    { // Descriptor sets
+        // Texture
+        NRI_ABORT_ON_FAILURE(NRI.AllocateDescriptorSets(descriptor_pool, pipeline_layout, 1, &texture_descriptor_set, 1, 0))
+
+        update_texture := nri.UpdateDescriptorRangeDesc{
+            // Destination
+            descriptorSet = texture_descriptor_set,
+            rangeIndex    = 0,
+            baseDescriptor= 0,
+
+            // Source & count
+            descriptors   = &texture_shader_resource,  // all descriptors must have the same type
+            descriptorNum = 1,
+        }
+        NRI.UpdateDescriptorRanges(&update_texture, 1)
+
+        // Constant buffer
+        for &queued_frame in frames {
+            NRI_ABORT_ON_FAILURE(NRI.AllocateDescriptorSets(descriptor_pool, pipeline_layout, 0, &queued_frame.constant_buffer_descriptor_set, 1, 0))
+            
+            update_descriptor_range_desc := nri.UpdateDescriptorRangeDesc{
+                // Destination
+                descriptorSet = queued_frame.constant_buffer_descriptor_set,
+                rangeIndex    = 0,
+                baseDescriptor= 0,
+
+                // Source & count
+                descriptors   = &queued_frame.constant_buffer_view,  // all descriptors must have the same type
+                descriptorNum = 1,
+            }
+            NRI.UpdateDescriptorRanges(&update_descriptor_range_desc, 1)
+        }
+    }
+
+    { // Upload data
+        geometry_buffer_data := make([dynamic]u8, index_data_aligned_size + u64(vertex_data_size))
+
+        runtime.mem_copy(&geometry_buffer_data[0], &triangle_indeces, index_data_size)
+        runtime.mem_copy(&geometry_buffer_data[index_data_aligned_size], &triangle_vertices, index_data_size)
+
+        subresources := [16]nri.TextureSubresourceUploadDesc{}
+        // for mip := 0; mip < texture_data.mipNum; mip += 1 {
+
+        // }
+
+        texture_data := nri.TextureUploadDesc{
+            // subresources= [^]TextureSubresourceUploadDesc,   // if provided, must include ALL subresources = layerNum * mipNum
+            texture     = texture,
+            after       = {
+                access= {.SHADER_RESOURCE},
+                layout= .SHADER_RESOURCE,
+                // stages= StageBits,
+            },
+            // planes      = PlaneBits,
+        }
+
+        buffer_data := nri.BufferUploadDesc{
+            data  = &geometry_buffer_data,        // if provided, must be data for the whole buffer
+            buffer= geometry_buffer,
+            after = {
+                access= {.INDEX_BUFFER, .VERTEX_BUFFER},
+            },
+        }
+        
+        NRI_ABORT_ON_FAILURE(NRI.UploadData(command_queue, &texture_data, 1, &buffer_data, 1))
+    }
+
+    
+	im_interface : nri.ImguiInterface
+	nri_imgui : ^nri.Imgui
+    { // Init Imgui 
+		im.CHECKVERSION()
+		im.CreateContext()
+		io := im.GetIO()
+
+        // io.BackendFlags += {.HasMouseCursors}
+        io.BackendFlags += {.RendererHasVtxOffset}
+        io.BackendFlags += {.RendererHasTextures}
+        io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
+
+        im.StyleColorsDark()
+
+        // im.FontAtlas_AddFontDefault(io.Fonts)
+
+		imgui_impl_sdl3.InitForOther(window)
+
+	    NRI_ABORT_ON_FAILURE(nri.GetInterface(device, "NriImguiInterface", size_of(im_interface), &im_interface))
+
+	    imgui_desc := nri.ImguiDesc{
+	        descriptorPoolSize = 1024
+	    }
+	    NRI_ABORT_ON_FAILURE(im_interface.CreateImgui(device, &imgui_desc, &nri_imgui))
+	}
 
 
 
@@ -582,18 +737,6 @@ main :: proc() {
                 }
                 im.EndFrame()
                 im.Render()
-    
-                imgui_draw_data = im.GetDrawData()
-                textures := im.GetPlatformIO().Textures
-                imgui_copy = nri.CopyImguiDataDesc{
-                    drawLists   = cast(^^nri.ImDrawList)imgui_draw_data.CmdLists.Data,
-                    drawListNum = u32(imgui_draw_data.CmdLists.Size),
-                    textures    = cast(^^nri.ImTextureData)textures.Data,
-                    // textures    = nil,
-                    textureNum  = u32(textures.Size),
-                    // textureNum  = 0,
-                }
-                im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
             }
 
 
@@ -615,23 +758,117 @@ main :: proc() {
 	                NRI.CmdClearAttachments(command_buffer, &clear_desc, 1, &rect1, 1)
 				}
 
-				{ // Imgui present
-					NRI.CmdBeginAnnotation(command_buffer, "Imgui present", 0); defer(NRI.CmdEndAnnotation(command_buffer))
+                { // Triangle
+					NRI.CmdBeginAnnotation(command_buffer, "Triangle", 0); defer(NRI.CmdEndAnnotation(command_buffer))
 
-					draw_imgui_desc := nri.DrawImguiDesc{
-					    drawLists       = imgui_copy.drawLists,
-					    drawListNum     = imgui_copy.drawListNum,
-					    displaySize     = {u16(imgui_draw_data.DisplaySize.x), u16(imgui_draw_data.DisplaySize.y)},
-					    hdrScale        = 1.0,
-					    attachmentFormat= swapchain_texture.attachment_format,
-					    linearColor     = true,
-					}
-					im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
+                    NRI.CmdSetPipelineLayout(command_buffer, .GRAPHICS, pipeline_layout)
+                    NRI.CmdSetPipeline(command_buffer, pipeline)
+
+                    transparency : f32 = 1.0
+                    root_constants := nri.SetRootConstantsDesc{
+                        rootConstantIndex= 0,
+                        data             = &transparency,
+                        size             = 4,
+                        // offset           = u32,         // requires "features.rootConstantsOffset"
+                        // bindPoint        = BindPoint,
+                    }
+                    NRI.CmdSetRootConstants(command_buffer, &root_constants)
                     
+                    NRI.CmdSetIndexBuffer(command_buffer, geometry_buffer, 0, .UINT16)
+                    
+                    vertex_buffer_desc := nri.VertexBufferDesc{
+                        buffer = geometry_buffer,
+                        offset = geometry_offset,
+                        stride = size_of(Vertex),
+                    }
+                    NRI.CmdSetVertexBuffers(command_buffer, 0, &vertex_buffer_desc, 1)
+                    
+                    descriptor_set_0 := nri.SetDescriptorSetDesc{
+                        setIndex      = 0,
+                        descriptorSet = queued_frame.constant_buffer_descriptor_set
+                        // bindPoint     = BindPoint,
+                    }
+                    NRI.CmdSetDescriptorSet(command_buffer, &descriptor_set_0)
+                    
+                    descriptor_set_1 := nri.SetDescriptorSetDesc{
+                        setIndex      = 1,
+                        descriptorSet = texture_descriptor_set
+                        // bindPoint     = BindPoint,
+                    }
+                    NRI.CmdSetDescriptorSet(command_buffer, &descriptor_set_1)
+
+                    {
+                        viewport := nri.Viewport{0.0, 0.0, f32(window_width), f32(window_height), 0, 1, false}
+                        NRI.CmdSetViewports(command_buffer, &viewport, 1)
+                        
+                        scissor := nri.Rect{0, 0, u16(window_width/2), u16(window_height)}
+                        NRI.CmdSetScissors(command_buffer, &scissor, 1)
+                    }
+                    
+                    draw_indexed_desc := nri.DrawIndexedDesc{
+                        indexNum    = 3,
+                        instanceNum = 1,
+                        baseIndex   = 0,   // index buffer offset = CmdSetIndexBuffer.offset + baseIndex * sizeof(CmdSetIndexBuffer.indexType)
+                        baseVertex  = 0,   // index += baseVertex
+                        baseInstance= 0,
+                    }
+                    NRI.CmdDrawIndexed(command_buffer, &draw_indexed_desc)
+                    
+                    {
+                        scissor := nri.Rect{
+                            i16(window_width/2), i16(window_height/2), u16(window_width/2), u16(window_height),
+                        }
+                        NRI.CmdSetScissors(command_buffer, &scissor, 1)
+                    }
+                    
+                    draw_desc := nri.DrawDesc{
+                        vertexNum   = 3,
+                        instanceNum = 1,
+                        baseVertex  = 0,   // vertex buffer offset = CmdSetVertexBuffers.offset + baseVertex * VertexStreamDesc::stride
+                        baseInstance= 0,
+                    }
+                    
+                    fmt.printfln("\nHerebefore")
+                    NRI.CmdDraw(command_buffer, &draw_desc)
+                    fmt.printfln("Hereafter\n")
                 }
-            
             }
             NRI.CmdEndRendering(command_buffer)
+
+            // Singleview
+            rendering_desc.viewMask = 0
+
+            { // Copy imgui data
+                imgui_draw_data = im.GetDrawData()
+                textures := im.GetPlatformIO().Textures
+                imgui_copy = nri.CopyImguiDataDesc{
+                    drawLists   = cast(^^nri.ImDrawList)imgui_draw_data.CmdLists.Data,
+                    drawListNum = u32(imgui_draw_data.CmdLists.Size),
+                    textures    = cast(^^nri.ImTextureData)textures.Data,
+                    // textures    = nil,
+                    textureNum  = u32(textures.Size),
+                    // textureNum  = 0,
+                }
+                im_interface.CmdCopyImguiData(command_buffer, streamer, nri_imgui, &imgui_copy)
+            }
+
+            NRI.CmdBeginRendering(command_buffer, &rendering_desc)           
+            { // Imgui present
+                NRI.CmdBeginAnnotation(command_buffer, "Imgui present", 0); defer(NRI.CmdEndAnnotation(command_buffer))
+
+                draw_imgui_desc := nri.DrawImguiDesc{
+                    drawLists       = imgui_copy.drawLists,
+                    drawListNum     = imgui_copy.drawListNum,
+                    displaySize     = {u16(imgui_draw_data.DisplaySize.x), u16(imgui_draw_data.DisplaySize.y)},
+                    hdrScale        = 1.0,
+                    attachmentFormat= swapchain_texture.attachment_format,
+                    linearColor     = true,
+                }
+                im_interface.CmdDrawImgui(command_buffer, nri_imgui, &draw_imgui_desc)
+            }
+            NRI.CmdEndRendering(command_buffer)
+            
+            
 
             texture_barriers.before = texture_barriers.after
             texture_barriers.after = {
@@ -686,6 +923,7 @@ main :: proc() {
 
         frame_index += 1
 
+        free_all(context.temp_allocator)
     }
 
     // Destroy 
