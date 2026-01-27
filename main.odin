@@ -814,23 +814,23 @@ main :: proc() {
                     }
                     NRI.CmdDrawIndexed(command_buffer, &draw_indexed_desc)
                     
-                    {
-                        scissor := nri.Rect{
-                            i16(window_width/2), i16(window_height/2), u16(window_width/2), u16(window_height),
-                        }
-                        NRI.CmdSetScissors(command_buffer, &scissor, 1)
-                    }
+                    // {
+                    //     scissor := nri.Rect{
+                    //         i16(window_width/2), i16(window_height/2), u16(window_width/2), u16(window_height),
+                    //     }
+                    //     NRI.CmdSetScissors(command_buffer, &scissor, 1)
+                    // }
                     
-                    draw_desc := nri.DrawDesc{
-                        vertexNum   = 3,
-                        instanceNum = 1,
-                        baseVertex  = 0,   // vertex buffer offset = CmdSetVertexBuffers.offset + baseVertex * VertexStreamDesc::stride
-                        baseInstance= 0,
-                    }
+                    // draw_desc := nri.DrawDesc{
+                    //     vertexNum   = 3,
+                    //     instanceNum = 1,
+                    //     baseVertex  = 0,   // vertex buffer offset = CmdSetVertexBuffers.offset + baseVertex * VertexStreamDesc::stride
+                    //     baseInstance= 0,
+                    // }
                     
-                    fmt.printfln("\nHerebefore")
-                    NRI.CmdDraw(command_buffer, &draw_desc)
-                    fmt.printfln("Hereafter\n")
+                    // fmt.printfln("\nHerebefore")
+                    // NRI.CmdDraw(command_buffer, &draw_desc)
+                    // fmt.printfln("Hereafter\n")
                 }
             }
             NRI.CmdEndRendering(command_buffer)
@@ -868,8 +868,6 @@ main :: proc() {
             }
             NRI.CmdEndRendering(command_buffer)
             
-            
-
             texture_barriers.before = texture_barriers.after
             texture_barriers.after = {
                 access = {},
