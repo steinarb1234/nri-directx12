@@ -429,7 +429,9 @@ main :: proc() {
 
     // Load texture
     texture_data : Texture
+    cat_texture: [dynamic]detexTexture
     tex_load_succ := load_texture("assets/textures/round_cat.png", &texture_data, false)
+    cat_mipmap_count, cat_ok := load_texture_file_with_mipmaps("assets/textures/round_cat.png", 1, &cat_texture)
     
     texture : ^nri.Texture
     { // Read-only texture
@@ -568,13 +570,15 @@ main :: proc() {
         runtime.mem_copy(&geometry_buffer_data[0], &triangle_indeces, index_data_size)
         runtime.mem_copy(&geometry_buffer_data[index_data_aligned_size], &triangle_vertices, index_data_size)
 
-        subresources := [16]nri.TextureSubresourceUploadDesc{}
-        // for mip := 0; mip < texture_data.mipNum; mip += 1 {
+        subresources := make([]nri.TextureSubresourceUploadDesc, 1)
 
-        // }
+        for mip :u32= 0; mip < u32(cat_mipmap_count); mip += 1 {
+            get_subresource(&subresources[mip], mip, cat_texture[0])
+        }
 
         texture_data := nri.TextureUploadDesc{
-            // subresources= [^]TextureSubresourceUploadDesc,   // if provided, must include ALL subresources = layerNum * mipNum
+            subresources= raw_data(subresources),   // if provided, must include ALL subresources = layerNum * mipNum
+            // texture     = texture,
             texture     = texture,
             after       = {
                 access= {.SHADER_RESOURCE},
