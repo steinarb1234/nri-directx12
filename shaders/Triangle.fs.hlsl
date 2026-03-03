@@ -27,8 +27,10 @@ struct outputVS
 float4 main( in outputVS input ) : SV_Target
 {
     float4 output;
-    output.xyz = g_DiffuseTexture.Sample( g_Sampler, input.texCoord ).xyz * color;
-    output.w = g_PushConstants.transparency;
+    // output.xyz = g_DiffuseTexture.Sample( g_Sampler, input.texCoord ).xyz * color;
+    output.xyz = float3(0,1,0);
+    // output.w = g_PushConstants.transparency;
+    output.w = 1;
 
     return output;
 }

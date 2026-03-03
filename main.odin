@@ -573,7 +573,7 @@ main :: proc() {
         geometry_buffer_data := make([dynamic]u8, index_data_aligned_size + u64(vertex_data_size))
 
         runtime.mem_copy(&geometry_buffer_data[0], &triangle_indeces, index_data_size)
-        runtime.mem_copy(&geometry_buffer_data[index_data_aligned_size], &triangle_vertices, index_data_size)
+        runtime.mem_copy(&geometry_buffer_data[index_data_aligned_size], &triangle_vertices, vertex_data_size)
 
         subresources := make([]nri.TextureSubresourceUploadDesc, 1)
 
@@ -680,7 +680,13 @@ main :: proc() {
         swapchain_texture := swapchain_textures[current_swapchain_texture_index]
 
         // Update constants
-        // common_constants := NRI.MapBuffer(consta)
+        common_constants := cast(^ConstantBufferLayout)NRI.MapBuffer(constant_buffer, queued_frame.constant_buffer_view_offset, size_of(ConstantBufferLayout))
+        if common_constants != nil {
+            common_constants.color = {0.8, 0.5, 0.1}
+            common_constants.scale = 1.0
+
+            NRI.UnmapBuffer(constant_buffer)
+        }
 
         command_buffer := queued_frame.command_buffer
         NRI.BeginCommandBuffer(command_buffer, descriptor_pool)
