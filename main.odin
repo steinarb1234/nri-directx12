@@ -97,7 +97,6 @@ Texture :: struct {
 
 Vertex :: struct{
     position: [2]f32,
-    // color:    [3]f32,
     uv:       [2]f32,
 }
 
@@ -233,10 +232,10 @@ main :: proc() {
         nri_swapchain_textures := NRI.GetSwapChainTextures(swapchain, &swapchain_texture_num)
         swapchain_format = NRI.GetTextureDesc(nri_swapchain_textures[0]).format
         for i:u32=0; i<swapchain_texture_num; i+=1 {
-            texture_view_desc := nri.Texture2DViewDesc{nri_swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0, {}}
+            texture_view_desc := nri.TextureViewDesc{nri_swapchain_textures[i], .COLOR_ATTACHMENT, swapchain_format, 0, 0, 0, 0, 0, 0, {}, {}}
 
             color_attachment : ^nri.Descriptor
-            NRI_ABORT_ON_FAILURE(NRI.CreateTexture2DView(&texture_view_desc, &color_attachment))
+            NRI_ABORT_ON_FAILURE(NRI.CreateTextureView(&texture_view_desc, &color_attachment))
 
             SWAPCHAIN_SEMAPHORE :: ~u64(0)
 
@@ -394,10 +393,13 @@ main :: proc() {
 
         shader_code_storage := make([dynamic][]u8, 2)
         shader_stages := []nri.ShaderDesc{
-            //............todo 
             load_shader(graphics_api, "Triangle.vs", &shader_code_storage),
             load_shader(graphics_api, "Triangle.fs", &shader_code_storage),
         }
+
+        // fmt.printfln("shader_code_storage: %v", shader_code_storage)
+        // fmt.printfln("shader_code_storage: %v", len(shader_code_storage))
+        // fmt.printfln("shader stages: %", shader_stages)
 
         graphics_pipeline_desc := nri.GraphicsPipelineDesc{
             pipelineLayout= pipeline_layout,
@@ -428,9 +430,9 @@ main :: proc() {
     }
 
     // Load texture
-    texture_data : Texture
+    // texture_data : Texture
     cat_texture: [dynamic]detexTexture
-    tex_load_succ := load_texture("assets/textures/round_cat.png", &texture_data, false)
+    // tex_load_succ := load_texture("assets/textures/round_cat.png", &texture_data, false)
     cat_mipmap_count, cat_ok := load_texture_file_with_mipmaps("assets/textures/round_cat.png", 1, &cat_texture)
     
     texture : ^nri.Texture
@@ -439,12 +441,14 @@ main :: proc() {
             type               = .TEXTURE_2D,
             usage              = {.SHADER_RESOURCE},
             format             = .RGBA8_UNORM,
-            width              = u16(texture_data.width),
-            height             = u16(texture_data.height),
-            depth              = 1,
+            // width              = u16(texture_data.width),
+            width              = u16(cat_texture[0].width),
+            // height             = u16(texture_data.height),
+            height             = u16(cat_texture[0].height),
+            // depth              = 1,
             mipNum             = 1,
-            layerNum           = 1,
-            sampleNum          = 1,
+            // layerNum           = 1,
+            // sampleNum          = 1,
             // sharingMode        = SharingMode,
             // optimizedClearValue= ClearValue,         // D3D12: not needed on desktop, since any HW can track many clear values
         }
@@ -501,24 +505,25 @@ main :: proc() {
 
     { // Descriptors
         // Read only texture
-        texture_2D_view_desc := nri.Texture2DViewDesc{
+        texture_view_desc := nri.TextureViewDesc{
             texture       = texture,
-            viewType      = .SHADER_RESOURCE,
+            type          = .TEXTURE,
             // format        = NRI.GetTextureDesc(texture).format,
-            format        = texture_data.format,
+            // format        = texture_data.format,
+            format        = .RGBA8_UNORM, // todo: convert dxgi texture format to nri format
             // mipOffset     = Dim_t,
             // mipNum        = Dim_t,               // can be "REMAINING"
             // layerOffset   = Dim_t,
             // layerNum      = Dim_t,               // can be "REMAINING"
             // readonlyPlanes= PlaneBits,           // "DEPTH" and/or "STENCIL"
         }
-        NRI_ABORT_ON_FAILURE(NRI.CreateTexture2DView(&texture_2D_view_desc, &texture_shader_resource))
+        NRI_ABORT_ON_FAILURE(NRI.CreateTextureView(&texture_view_desc, &texture_shader_resource))
 
         // Constant buffer
         for i : u64 = 0; i < queued_frame_num; i+=1 {
             buffer_view_desc := nri.BufferViewDesc{
                 buffer         = constant_buffer,
-                viewType       = .CONSTANT,
+                type           = .CONSTANT_BUFFER,
                 // format         = Format,
                 offset         = i * constant_buffer_size, // expects "memoryAlignment.bufferShaderResourceOffset" for shader resources
                 size           = constant_buffer_size,     // can be "WHOLE_SIZE"
@@ -778,7 +783,13 @@ main :: proc() {
                     }
                     NRI.CmdSetRootConstants(command_buffer, &root_constants)
                     
-                    NRI.CmdSetIndexBuffer(command_buffer, geometry_buffer, 0, .UINT16)
+                    NRI.CmdSetIndexBuffer(
+                        commandBuffer= command_buffer,
+                        buffer       = geometry_buffer,
+                        // offset       = geometry_offset,
+                        offset       = 0,
+                        indexType    = .UINT16,
+                    )
                     
                     vertex_buffer_desc := nri.VertexBufferDesc{
                         buffer = geometry_buffer,
@@ -805,7 +816,7 @@ main :: proc() {
                         viewport := nri.Viewport{0.0, 0.0, f32(window_width), f32(window_height), 0, 1, false}
                         NRI.CmdSetViewports(command_buffer, &viewport, 1)
                         
-                        scissor := nri.Rect{0, 0, u16(window_width/2), u16(window_height)}
+                        scissor := nri.Rect{0, 0, u16(window_width), u16(window_height)}
                         NRI.CmdSetScissors(command_buffer, &scissor, 1)
                     }
                     

@@ -245,16 +245,11 @@ load_image_file :: proc(filename: string) -> (texture: detexTexture, ok: bool) {
 }
 
 get_subresource :: proc(subresource: ^nri.TextureSubresourceUploadDesc, mip_index: u32, mip: detexTexture, array_index: u32 = 0) {
-	
-	// mip : ^detexTexture
-
 	row_pitch, slice_pitch : int
-
 	{ // detexComputePitch
 		bpp := 4 * 8
-		row_pitch = (mip.width * bpp + 7) * 8
+		row_pitch = (mip.width * bpp + 7) / 8
 		slice_pitch = row_pitch * mip.height
-
 	}
 
 	subresource.slices = raw_data(mip.data)

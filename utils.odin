@@ -98,6 +98,8 @@ load_shader :: proc(graphics_api: nri.GraphicsAPI, shader_name: string, storage:
         os.exit(-1)
 	}
 
+    append(storage, code)
+
     shader_desc : nri.ShaderDesc = {
         stage         = shader_stage,
         bytecode      = raw_data(code),
